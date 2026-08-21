@@ -27,6 +27,9 @@ public class CustomerService {
                 .email(req.email())
                 .phone(req.phone())
                 .status(req.status())
+                .idNumber(req.idNumber())
+                .idType(req.idType())
+                .dateOfBirth(req.dateOfBirth())
                 .build();
         return CustomerResponse.from(customerRepository.save(customer));
     }
@@ -50,6 +53,17 @@ public class CustomerService {
         customer.setEmail(req.email());
         customer.setPhone(req.phone());
         customer.setStatus(req.status());
+
+        if (req.idNumber() != null) {
+            customer.setIdNumber(req.idNumber());
+        }
+        if (req.idType() != null) {
+            customer.setIdType(req.idType());
+        }
+        if (req.dateOfBirth() != null) {
+            customer.setDateOfBirth(req.dateOfBirth());
+        }
+
         return CustomerResponse.from(customerRepository.save(customer));
     }
 
