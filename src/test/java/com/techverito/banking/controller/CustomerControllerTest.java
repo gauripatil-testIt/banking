@@ -35,11 +35,13 @@ class CustomerControllerTest {
     ObjectMapper objectMapper;
 
     private CustomerRequest validRequest() {
-        return new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE);
+        return new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                "ID123", null, java.time.LocalDate.now().minusYears(20));
     }
 
     private CustomerResponse response(Long id) {
-        return new CustomerResponse(id, "John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE);
+        return new CustomerResponse(id, "John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                "ID123", null, java.time.LocalDate.now().minusYears(20));
     }
 
     @Test
@@ -52,12 +54,14 @@ class CustomerControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.firstName").value("John"))
-                .andExpect(jsonPath("$.status").value("ACTIVE"));
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.idNumber").value("ID123"));
     }
 
     @Test
     void POST_customers_invalidBody_returns400() throws Exception {
-        CustomerRequest invalid = new CustomerRequest("", "", "not-an-email", null, null);
+        CustomerRequest invalid = new CustomerRequest("", "", "not-an-email", null, null,
+                "ID123", null, java.time.LocalDate.now().plusDays(1));
 
         mockMvc.perform(post("/customers")
                         .contentType(MediaType.APPLICATION_JSON)

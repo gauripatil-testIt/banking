@@ -4,6 +4,7 @@ import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerStatus;
+import com.techverito.banking.entity.IdType;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,14 +31,19 @@ class CustomerServiceTest {
     CustomerService customerService;
 
     private CustomerRequest request() {
-        return new CustomerRequest("John", "Doe", "john@example.com", "1234567890", CustomerStatus.ACTIVE);
+        return new CustomerRequest("John", "Doe", "john@example.com", "1234567890", CustomerStatus.ACTIVE,
+                "ID123", IdType.NATIONAL_ID, LocalDate.now().minusYears(20));
     }
 
     private Customer customer(Long id) {
         return Customer.builder()
                 .id(id).firstName("John").lastName("Doe")
                 .email("john@example.com").phone("1234567890")
-                .status(CustomerStatus.ACTIVE).build();
+                .status(CustomerStatus.ACTIVE)
+                .idNumber("ID123")
+                .idType(IdType.NATIONAL_ID)
+                .dateOfBirth(LocalDate.now().minusYears(20))
+                .build();
     }
 
     @Test
@@ -49,6 +56,9 @@ class CustomerServiceTest {
         assertThat(res.id()).isEqualTo(1L);
         assertThat(res.firstName()).isEqualTo("John");
         assertThat(res.status()).isEqualTo(CustomerStatus.ACTIVE);
+        assertThat(res.idNumber()).isEqualTo("ID123");
+        assertThat(res.idType()).isEqualTo(IdType.NATIONAL_ID);
+        assertThat(res.dateOfBirth()).isEqualTo(LocalDate.now().minusYears(20));
         verify(customerRepository).save(any(Customer.class));
     }
 
@@ -86,9 +96,12 @@ class CustomerServiceTest {
         when(customerRepository.save(any())).thenReturn(existing);
 
         CustomerResponse res = customerService.update(1L,
-                new CustomerRequest("Jane", "Smith", "jane@example.com", "999", CustomerStatus.INACTIVE));
+                new CustomerRequest("Jane", "Smith", "jane@example.com", "999", CustomerStatus.INACTIVE,
+                        "ID999", IdType.PASSPORT, LocalDate.now().minusYears(30)));
 
         assertThat(res).isNotNull();
+        assertThat(res.firstName()).isEqualTo("Jane");
+        assertThat(res.idNumber()).isEqualTo("ID999");
         verify(customerRepository).save(existing);
     }
 
