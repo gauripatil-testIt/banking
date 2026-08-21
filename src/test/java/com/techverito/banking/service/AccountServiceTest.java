@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,11 +45,12 @@ class AccountServiceTest {
                 .id(id).customer(customer)
                 .accountNumber("ACC001").type(AccountType.SAVINGS)
                 .balance(BigDecimal.valueOf(1000)).status(AccountStatus.ACTIVE)
+                .currency(Currency.getInstance("USD"))
                 .build();
     }
 
     private AccountRequest request() {
-        return new AccountRequest(1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE);
+        return new AccountRequest(1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE, null);
     }
 
     @Test
@@ -64,6 +66,7 @@ class AccountServiceTest {
         assertThat(res.customerId()).isEqualTo(1L);
         assertThat(res.type()).isEqualTo(AccountType.SAVINGS);
         assertThat(res.balance()).isEqualByComparingTo(BigDecimal.valueOf(1000));
+        assertThat(res.currency()).isEqualTo(Currency.getInstance("USD"));
     }
 
     @Test
@@ -84,6 +87,7 @@ class AccountServiceTest {
 
         assertThat(res.accountNumber()).isEqualTo("ACC001");
         assertThat(res.status()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(res.currency()).isEqualTo(Currency.getInstance("USD"));
     }
 
     @Test
@@ -126,6 +130,7 @@ class AccountServiceTest {
         AccountResponse res = accountService.update(1L, request());
 
         assertThat(res).isNotNull();
+        assertThat(res.currency()).isEqualTo(Currency.getInstance("USD"));
         verify(accountRepository).save(existing);
     }
 

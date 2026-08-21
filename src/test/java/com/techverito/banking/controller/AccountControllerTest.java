@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.util.Currency;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -37,11 +38,11 @@ class AccountControllerTest {
     ObjectMapper objectMapper;
 
     private AccountRequest validRequest() {
-        return new AccountRequest(1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE);
+        return new AccountRequest(1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE, null);
     }
 
     private AccountResponse response(Long id) {
-        return new AccountResponse(id, 1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE);
+        return new AccountResponse(id, 1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE, Currency.getInstance("USD"));
     }
 
     @Test
@@ -54,12 +55,13 @@ class AccountControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.accountNumber").value("ACC001"))
-                .andExpect(jsonPath("$.type").value("SAVINGS"));
+                .andExpect(jsonPath("$.type").value("SAVINGS"))
+                .andExpect(jsonPath("$.currency").value("USD"));
     }
 
     @Test
     void POST_accounts_invalidBody_returns400() throws Exception {
-        AccountRequest invalid = new AccountRequest(null, "", null, null, null);
+        AccountRequest invalid = new AccountRequest(null, "", null, null, null, null);
 
         mockMvc.perform(post("/accounts")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -74,7 +76,8 @@ class AccountControllerTest {
         mockMvc.perform(get("/accounts/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.customerId").value(1))
-                .andExpect(jsonPath("$.status").value("ACTIVE"));
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.currency").value("USD"));
     }
 
     @Test
@@ -111,7 +114,8 @@ class AccountControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(validRequest())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1));
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.currency").value("USD"));
     }
 
     @Test

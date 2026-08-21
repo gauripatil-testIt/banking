@@ -10,6 +10,7 @@ import com.techverito.banking.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Currency;
 import java.util.List;
 
 @Service
@@ -27,12 +28,14 @@ public class AccountService {
     public AccountResponse create(AccountRequest req) {
         Customer customer = customerRepository.findById(req.customerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", req.customerId()));
+        Currency currency = req.currency() != null ? req.currency() : Currency.getInstance("USD");
         Account account = Account.builder()
                 .customer(customer)
                 .accountNumber(req.accountNumber())
                 .type(req.type())
                 .balance(req.balance())
                 .status(req.status())
+                .currency(currency)
                 .build();
         return AccountResponse.from(accountRepository.save(account));
     }
@@ -54,11 +57,13 @@ public class AccountService {
         Account account = findOrThrow(id);
         Customer customer = customerRepository.findById(req.customerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", req.customerId()));
+        Currency currency = req.currency() != null ? req.currency() : Currency.getInstance("USD");
         account.setCustomer(customer);
         account.setAccountNumber(req.accountNumber());
         account.setType(req.type());
         account.setBalance(req.balance());
         account.setStatus(req.status());
+        account.setCurrency(currency);
         return AccountResponse.from(accountRepository.save(account));
     }
 

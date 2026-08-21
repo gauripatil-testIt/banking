@@ -5,6 +5,7 @@ import com.techverito.banking.entity.AccountStatus;
 import com.techverito.banking.entity.AccountType;
 
 import java.math.BigDecimal;
+import java.util.Currency;
 
 public record AccountResponse(
         Long id,
@@ -12,12 +13,13 @@ public record AccountResponse(
         String accountNumber,
         AccountType type,
         BigDecimal balance,
-        AccountStatus status
+        AccountStatus status,
+        Currency currency
 ) {
     public static AccountResponse from(Account a) {
         return new AccountResponse(
                 a.getId(), a.getCustomer().getId(), a.getAccountNumber(),
-                a.getType(), a.getBalance(), a.getStatus()
+                a.getType(), a.getBalance(), a.getStatus(), a.getCurrency()
         );
     }
 }
