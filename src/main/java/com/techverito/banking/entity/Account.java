@@ -31,6 +31,10 @@ public class Account {
     @Column(nullable = false)
     private AccountStatus status;
 
+    @Column(nullable = false)
+    @org.hibernate.annotations.ColumnDefault("'USD'")
+    private String currency;
+
     public Account() {}
 
     private Account(Builder b) {
@@ -40,6 +44,7 @@ public class Account {
         this.type = b.type;
         this.balance = b.balance;
         this.status = b.status;
+        this.currency = b.currency;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -51,6 +56,7 @@ public class Account {
         private AccountType type;
         private BigDecimal balance;
         private AccountStatus status;
+        private String currency;
 
         public Builder id(Long v) { this.id = v; return this; }
         public Builder customer(Customer v) { this.customer = v; return this; }
@@ -58,6 +64,7 @@ public class Account {
         public Builder type(AccountType v) { this.type = v; return this; }
         public Builder balance(BigDecimal v) { this.balance = v; return this; }
         public Builder status(AccountStatus v) { this.status = v; return this; }
+        public Builder currency(String v) { this.currency = v; return this; }
         public Account build() { return new Account(this); }
     }
 
@@ -68,11 +75,15 @@ public class Account {
     public BigDecimal getBalance() { return balance; }
     public AccountStatus getStatus() { return status; }
 
+    public String getCurrency() { return currency; }
+
     public void setCustomer(Customer v) { this.customer = v; }
     public void setAccountNumber(String v) { this.accountNumber = v; }
     public void setType(AccountType v) { this.type = v; }
     public void setBalance(BigDecimal v) { this.balance = v; }
     public void setStatus(AccountStatus v) { this.status = v; }
+
+    public void setCurrency(String v) { this.currency = v; }
 
     @Override
     public boolean equals(Object o) {

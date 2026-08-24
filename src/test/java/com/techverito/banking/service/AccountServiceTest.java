@@ -44,11 +44,12 @@ class AccountServiceTest {
                 .id(id).customer(customer)
                 .accountNumber("ACC001").type(AccountType.SAVINGS)
                 .balance(BigDecimal.valueOf(1000)).status(AccountStatus.ACTIVE)
+                .currency("USD")
                 .build();
     }
 
     private AccountRequest request() {
-        return new AccountRequest(1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE);
+        return new AccountRequest(1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE, "USD");
     }
 
     @Test
@@ -64,6 +65,7 @@ class AccountServiceTest {
         assertThat(res.customerId()).isEqualTo(1L);
         assertThat(res.type()).isEqualTo(AccountType.SAVINGS);
         assertThat(res.balance()).isEqualByComparingTo(BigDecimal.valueOf(1000));
+        assertThat(res.currency()).isEqualTo("USD");
     }
 
     @Test
@@ -84,6 +86,7 @@ class AccountServiceTest {
 
         assertThat(res.accountNumber()).isEqualTo("ACC001");
         assertThat(res.status()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(res.currency()).isEqualTo("USD");
     }
 
     @Test

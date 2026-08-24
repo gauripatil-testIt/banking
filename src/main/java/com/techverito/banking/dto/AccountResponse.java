@@ -12,12 +12,13 @@ public record AccountResponse(
         String accountNumber,
         AccountType type,
         BigDecimal balance,
-        AccountStatus status
+        AccountStatus status,
+        String currency
 ) {
     public static AccountResponse from(Account a) {
         return new AccountResponse(
                 a.getId(), a.getCustomer().getId(), a.getAccountNumber(),
-                a.getType(), a.getBalance(), a.getStatus()
+                a.getType(), a.getBalance(), a.getStatus(), a.getCurrency()
         );
     }
 }

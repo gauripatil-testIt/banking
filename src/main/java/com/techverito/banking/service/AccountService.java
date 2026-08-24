@@ -33,6 +33,7 @@ public class AccountService {
                 .type(req.type())
                 .balance(req.balance())
                 .status(req.status())
+                .currency(req.currency())
                 .build();
         return AccountResponse.from(accountRepository.save(account));
     }
@@ -59,6 +60,7 @@ public class AccountService {
         account.setType(req.type());
         account.setBalance(req.balance());
         account.setStatus(req.status());
+        account.setCurrency(req.currency());
         return AccountResponse.from(accountRepository.save(account));
     }
 

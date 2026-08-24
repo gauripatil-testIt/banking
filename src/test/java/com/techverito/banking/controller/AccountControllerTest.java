@@ -37,11 +37,11 @@ class AccountControllerTest {
     ObjectMapper objectMapper;
 
     private AccountRequest validRequest() {
-        return new AccountRequest(1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE);
+        return new AccountRequest(1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE, "USD");
     }
 
     private AccountResponse response(Long id) {
-        return new AccountResponse(id, 1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE);
+        return new AccountResponse(id, 1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE, "USD");
     }
 
     @Test
@@ -59,7 +59,17 @@ class AccountControllerTest {
 
     @Test
     void POST_accounts_invalidBody_returns400() throws Exception {
-        AccountRequest invalid = new AccountRequest(null, "", null, null, null);
+        AccountRequest invalid = new AccountRequest(null, "", null, null, null, "");
+
+        mockMvc.perform(post("/accounts")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalid)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void POST_accounts_missingCurrency_returns400() throws Exception {
+        AccountRequest invalid = new AccountRequest(1L, "ACC001", AccountType.SAVINGS, BigDecimal.valueOf(1000), AccountStatus.ACTIVE, " ");
 
         mockMvc.perform(post("/accounts")
                         .contentType(MediaType.APPLICATION_JSON)
