@@ -39,6 +39,10 @@ public class Customer {
     @Column
     private LocalDate dateOfBirth;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "relationship_manager_id")
+    private RelationshipManager relationshipManager;
+
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Account> accounts = new ArrayList<>();
 
@@ -54,6 +58,7 @@ public class Customer {
         this.idNumber = b.idNumber;
         this.idType = b.idType;
         this.dateOfBirth = b.dateOfBirth;
+        this.relationshipManager = b.relationshipManager;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -68,6 +73,7 @@ public class Customer {
         private String idNumber;
         private String idType;
         private LocalDate dateOfBirth;
+        private RelationshipManager relationshipManager;
 
         public Builder id(Long id) { this.id = id; return this; }
         public Builder firstName(String v) { this.firstName = v; return this; }
@@ -78,6 +84,7 @@ public class Customer {
         public Builder idNumber(String v) { this.idNumber = v; return this; }
         public Builder idType(String v) { this.idType = v; return this; }
         public Builder dateOfBirth(LocalDate v) { this.dateOfBirth = v; return this; }
+        public Builder relationshipManager(RelationshipManager v) { this.relationshipManager = v; return this; }
         public Customer build() { return new Customer(this); }
     }
 
@@ -93,6 +100,8 @@ public class Customer {
     public String getIdType() { return idType; }
     public LocalDate getDateOfBirth() { return dateOfBirth; }
 
+    public RelationshipManager getRelationshipManager() { return relationshipManager; }
+
     public void setFirstName(String v) { this.firstName = v; }
     public void setLastName(String v) { this.lastName = v; }
     public void setEmail(String v) { this.email = v; }
@@ -102,6 +111,8 @@ public class Customer {
     public void setIdNumber(String v) { this.idNumber = v; }
     public void setIdType(String v) { this.idType = v; }
     public void setDateOfBirth(LocalDate v) { this.dateOfBirth = v; }
+
+    public void setRelationshipManager(RelationshipManager v) { this.relationshipManager = v; }
 
     @Override
     public boolean equals(Object o) {

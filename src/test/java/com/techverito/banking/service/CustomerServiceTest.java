@@ -4,6 +4,8 @@ import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerStatus;
+import com.techverito.banking.entity.RelationshipManager;
+import com.techverito.banking.exception.NoActiveRelationshipManagerException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
@@ -26,12 +28,19 @@ class CustomerServiceTest {
     @Mock
     CustomerRepository customerRepository;
 
+    @Mock
+    RelationshipManagerAssignmentService relationshipManagerAssignmentService;
+
     @InjectMocks
     CustomerService customerService;
 
     private CustomerRequest request() {
         return new CustomerRequest("John", "Doe", "john@example.com", "1234567890", CustomerStatus.ACTIVE,
                 "ID12345", "PASSPORT", LocalDate.of(1990, 1, 1));
+    }
+
+    private RelationshipManager relationshipManager(Long id) {
+        return RelationshipManager.builder().id(id).name("RM" + id).active(true).build();
     }
 
     private Customer customer(Long id) {
@@ -42,12 +51,14 @@ class CustomerServiceTest {
                 .idNumber("ID12345")
                 .idType("PASSPORT")
                 .dateOfBirth(LocalDate.of(1990, 1, 1))
+                .relationshipManager(relationshipManager(10L))
                 .build();
     }
 
     @Test
     void create_savesAndReturnsResponse() {
         Customer saved = customer(1L);
+        when(relationshipManagerAssignmentService.assignNext()).thenReturn(relationshipManager(10L));
         when(customerRepository.save(any())).thenReturn(saved);
 
         CustomerResponse res = customerService.create(request());
@@ -58,7 +69,19 @@ class CustomerServiceTest {
         assertThat(res.idNumber()).isEqualTo("ID12345");
         assertThat(res.idType()).isEqualTo("PASSPORT");
         assertThat(res.dateOfBirth()).isEqualTo(LocalDate.of(1990, 1, 1));
+        assertThat(res.relationshipManagerId()).isEqualTo(10L);
         verify(customerRepository).save(any(Customer.class));
+    }
+
+    @Test
+    void create_noActiveRelationshipManager_propagatesException() {
+        when(relationshipManagerAssignmentService.assignNext())
+                .thenThrow(new NoActiveRelationshipManagerException());
+
+        assertThatThrownBy(() -> customerService.create(request()))
+                .isInstanceOf(NoActiveRelationshipManagerException.class);
+
+        verify(customerRepository, never()).save(any());
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.CustomerStatus;
 import com.techverito.banking.exception.GlobalExceptionHandler;
+import com.techverito.banking.exception.NoActiveRelationshipManagerException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.service.CustomerService;
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,7 @@ class CustomerControllerTest {
 
     private CustomerResponse response(Long id) {
         return new CustomerResponse(id, "John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "ID12345", "PASSPORT", LocalDate.of(1990, 1, 1));
+                "ID12345", "PASSPORT", LocalDate.of(1990, 1, 1), 10L);
     }
 
     @Test
@@ -58,7 +59,18 @@ class CustomerControllerTest {
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.idNumber").value("ID12345"))
                 .andExpect(jsonPath("$.idType").value("PASSPORT"))
-                .andExpect(jsonPath("$.dateOfBirth").value("1990-01-01"));
+                .andExpect(jsonPath("$.dateOfBirth").value("1990-01-01"))
+                .andExpect(jsonPath("$.relationshipManagerId").value(10));
+    }
+
+    @Test
+    void POST_customers_noActiveRelationshipManager_returns400() throws Exception {
+        when(customerService.create(any())).thenThrow(new NoActiveRelationshipManagerException());
+
+        mockMvc.perform(post("/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest())))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -74,7 +86,7 @@ class CustomerControllerTest {
     @Test
     void POST_customers_invalidKyc_returns400() throws Exception {
         CustomerRequest invalidKyc = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "", "PASSPORT", LocalDate.of(1990, 1, 1));
+                "2", "PASSPORT", LocalDate.of(1990, 1, 1));
 
         mockMvc.perform(post("/customers")
                         .contentType(MediaType.APPLICATION_JSON)
