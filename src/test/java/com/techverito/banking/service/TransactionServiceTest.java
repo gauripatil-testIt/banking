@@ -61,6 +61,18 @@ class TransactionServiceTest {
                 .build();
     }
 
+    private Transaction transaction(Long id, Account account, TransactionType type, TransactionStatus status) {
+        return Transaction.builder()
+                .id(id).account(account)
+                .type(type)
+                .amount(BigDecimal.valueOf(100))
+                .balanceAfter(BigDecimal.valueOf(1100))
+                .status(status)
+                .targetAccountNumber(null)
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
+
     private TransactionRequest request() {
         return new TransactionRequest(1L, TransactionType.DEPOSIT, BigDecimal.valueOf(100), BigDecimal.valueOf(1100), TransactionStatus.PENDING, null);
     }
@@ -117,20 +129,93 @@ class TransactionServiceTest {
         Account a = account(1L);
         when(transactionRepository.findAll()).thenReturn(List.of(transaction(1L, a), transaction(2L, a)));
 
-        List<TransactionResponse> res = transactionService.list(null);
+        List<TransactionResponse> res = transactionService.list(null, null, null, null);
 
         assertThat(res).hasSize(2);
+        verify(transactionRepository).findAll();
+        verify(transactionRepository, never()).findByFilters(any(), any(), any(), any());
     }
 
     @Test
     void list_withAccountId_returnsFiltered() {
         Account a = account(1L);
-        when(transactionRepository.findByAccount_Id(1L)).thenReturn(List.of(transaction(1L, a)));
+        when(transactionRepository.findByFilters(1L, null, null, null)).thenReturn(List.of(transaction(1L, a)));
+
+        List<TransactionResponse> res = transactionService.list(1L, null, null, null);
+
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).accountId()).isEqualTo(1L);
+    }
+
+    @Test
+    void list_deprecatedSingleArgOverload_delegatesToAccountFilter() {
+        Account a = account(1L);
+        when(transactionRepository.findByFilters(1L, null, null, null)).thenReturn(List.of(transaction(1L, a)));
 
         List<TransactionResponse> res = transactionService.list(1L);
 
         assertThat(res).hasSize(1);
         assertThat(res.get(0).accountId()).isEqualTo(1L);
+    }
+
+    @Test
+    void list_withStatus_returnsFiltered() {
+        Account a = account(1L);
+        Transaction completed = transaction(1L, a, TransactionType.DEPOSIT, TransactionStatus.COMPLETED);
+        when(transactionRepository.findByFilters(null, TransactionStatus.COMPLETED, null, null))
+                .thenReturn(List.of(completed));
+
+        List<TransactionResponse> res = transactionService.list(null, TransactionStatus.COMPLETED, null, null);
+
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).status()).isEqualTo(TransactionStatus.COMPLETED);
+    }
+
+    @Test
+    void list_withType_returnsFiltered() {
+        Account a = account(1L);
+        Transaction withdrawal = transaction(1L, a, TransactionType.WITHDRAWAL, TransactionStatus.PENDING);
+        when(transactionRepository.findByFilters(null, null, TransactionType.WITHDRAWAL, null))
+                .thenReturn(List.of(withdrawal));
+
+        List<TransactionResponse> res = transactionService.list(null, null, TransactionType.WITHDRAWAL, null);
+
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).type()).isEqualTo(TransactionType.WITHDRAWAL);
+    }
+
+    @Test
+    void list_withCustomerId_returnsFiltered() {
+        Account a = account(1L);
+        Transaction t = transaction(1L, a);
+        when(transactionRepository.findByFilters(null, null, null, 1L)).thenReturn(List.of(t));
+
+        List<TransactionResponse> res = transactionService.list(null, null, null, 1L);
+
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).accountId()).isEqualTo(1L);
+    }
+
+    @Test
+    void list_withCombinedFilters_returnsFiltered() {
+        Account a = account(1L);
+        Transaction t = transaction(1L, a, TransactionType.DEPOSIT, TransactionStatus.COMPLETED);
+        when(transactionRepository.findByFilters(1L, TransactionStatus.COMPLETED, TransactionType.DEPOSIT, 1L))
+                .thenReturn(List.of(t));
+
+        List<TransactionResponse> res = transactionService.list(1L, TransactionStatus.COMPLETED, TransactionType.DEPOSIT, 1L);
+
+        assertThat(res).hasSize(1);
+    }
+
+    @Test
+    void list_filtersYieldNoMatches_returnsEmptyList() {
+        when(transactionRepository.findByFilters(999L, TransactionStatus.FAILED, TransactionType.TRANSFER, 999L))
+                .thenReturn(List.of());
+
+        List<TransactionResponse> res = transactionService.list(999L, TransactionStatus.FAILED, TransactionType.TRANSFER, 999L);
+
+        assertThat(res).isEmpty();
     }
 
     @Test

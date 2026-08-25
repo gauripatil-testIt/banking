@@ -4,6 +4,8 @@ import com.techverito.banking.dto.TransactionRequest;
 import com.techverito.banking.dto.TransactionResponse;
 import com.techverito.banking.entity.Account;
 import com.techverito.banking.entity.Transaction;
+import com.techverito.banking.entity.TransactionStatus;
+import com.techverito.banking.entity.TransactionType;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.AccountRepository;
 import com.techverito.banking.repository.TransactionRepository;
@@ -47,9 +49,14 @@ public class TransactionService {
 
     @Transactional(readOnly = true)
     public List<TransactionResponse> list(Long accountId) {
-        List<Transaction> transactions = (accountId != null)
-                ? transactionRepository.findByAccount_Id(accountId)
-                : transactionRepository.findAll();
+        return list(accountId, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TransactionResponse> list(Long accountId, TransactionStatus status, TransactionType type, Long customerId) {
+        List<Transaction> transactions = (accountId == null && status == null && type == null && customerId == null)
+                ? transactionRepository.findAll()
+                : transactionRepository.findByFilters(accountId, status, type, customerId);
         return transactions.stream().map(TransactionResponse::from).toList();
     }
 

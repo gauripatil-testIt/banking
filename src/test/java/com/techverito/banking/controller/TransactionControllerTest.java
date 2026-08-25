@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -109,7 +110,7 @@ class TransactionControllerTest {
 
     @Test
     void GET_transactions_noFilter_returnsAll() throws Exception {
-        when(transactionService.list(null)).thenReturn(List.of(response(1L), response(2L)));
+        when(transactionService.list(isNull(), isNull(), isNull(), isNull())).thenReturn(List.of(response(1L), response(2L)));
 
         mockMvc.perform(get("/transactions"))
                 .andExpect(status().isOk())
@@ -118,11 +119,71 @@ class TransactionControllerTest {
 
     @Test
     void GET_transactions_withAccountId_returnsFiltered() throws Exception {
-        when(transactionService.list(1L)).thenReturn(List.of(response(1L)));
+        when(transactionService.list(eq(1L), isNull(), isNull(), isNull())).thenReturn(List.of(response(1L)));
 
         mockMvc.perform(get("/transactions").param("accountId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void GET_transactions_withStatus_returnsFiltered() throws Exception {
+        when(transactionService.list(isNull(), eq(TransactionStatus.COMPLETED), isNull(), isNull()))
+                .thenReturn(List.of(response(1L)));
+
+        mockMvc.perform(get("/transactions").param("status", "COMPLETED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void GET_transactions_withType_returnsFiltered() throws Exception {
+        when(transactionService.list(isNull(), isNull(), eq(TransactionType.DEPOSIT), isNull()))
+                .thenReturn(List.of(response(1L)));
+
+        mockMvc.perform(get("/transactions").param("type", "DEPOSIT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void GET_transactions_withCustomerId_returnsFiltered() throws Exception {
+        when(transactionService.list(isNull(), isNull(), isNull(), eq(1L)))
+                .thenReturn(List.of(response(1L)));
+
+        mockMvc.perform(get("/transactions").param("customerId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void GET_transactions_withTypeAndCustomerId_returnsFiltered() throws Exception {
+        when(transactionService.list(isNull(), isNull(), eq(TransactionType.DEPOSIT), eq(1L)))
+                .thenReturn(List.of(response(1L)));
+
+        mockMvc.perform(get("/transactions").param("type", "DEPOSIT").param("customerId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void GET_transactions_filtersYieldNoMatches_returnsEmptyArray() throws Exception {
+        when(transactionService.list(eq(999L), eq(TransactionStatus.FAILED), eq(TransactionType.TRANSFER), eq(999L)))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/transactions")
+                        .param("accountId", "999")
+                        .param("status", "FAILED")
+                        .param("type", "TRANSFER")
+                        .param("customerId", "999"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void GET_transactions_invalidStatus_returns400() throws Exception {
+        mockMvc.perform(get("/transactions").param("status", "BOGUS"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
