@@ -22,7 +22,6 @@ public class CustomerController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CustomerResponse create(@Valid @RequestBody CustomerRequest request) {
-        validateKyc(request);
         return customerService.create(request);
     }
 
@@ -38,7 +37,6 @@ public class CustomerController {
 
     @PutMapping("/{id}")
     public CustomerResponse update(@PathVariable Long id, @Valid @RequestBody CustomerRequest request) {
-        validateKyc(request);
         return customerService.update(id, request);
     }
 
@@ -46,14 +44,5 @@ public class CustomerController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
         customerService.delete(id);
-    }
-
-    private void validateKyc(CustomerRequest request) {
-        if (request.idType() != null && request.idType().isBlank()) {
-            throw new IllegalArgumentException("idType must not be blank");
-        }
-        if (request.idNumber() != null && request.idNumber().isBlank()) {
-            throw new IllegalArgumentException("idNumber must not be blank");
-        }
     }
 }
