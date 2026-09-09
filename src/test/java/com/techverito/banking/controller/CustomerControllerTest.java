@@ -83,6 +83,50 @@ class CustomerControllerTest {
     }
 
     @Test
+    void POST_customers_missingIdNumber_returns400() throws Exception {
+        CustomerRequest invalidKyc = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                null, "PASSPORT", LocalDate.of(1990, 1, 1));
+
+        mockMvc.perform(post("/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidKyc)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void POST_customers_missingIdType_returns400() throws Exception {
+        CustomerRequest invalidKyc = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                "ID12345", null, LocalDate.of(1990, 1, 1));
+
+        mockMvc.perform(post("/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidKyc)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void POST_customers_missingDateOfBirth_returns400() throws Exception {
+        CustomerRequest invalidKyc = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                "ID12345", "PASSPORT", null);
+
+        mockMvc.perform(post("/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidKyc)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void POST_customers_invalidIdType_returns400() throws Exception {
+        CustomerRequest invalidKyc = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                "ID12345", "FOREIGN_PASSPORT", LocalDate.of(1990, 1, 1));
+
+        mockMvc.perform(post("/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidKyc)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void GET_customers_id_found_returns200() throws Exception {
         when(customerService.getById(1L)).thenReturn(response(1L));
 

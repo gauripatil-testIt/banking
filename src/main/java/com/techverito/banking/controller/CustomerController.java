@@ -22,7 +22,7 @@ public class CustomerController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CustomerResponse create(@Valid @RequestBody CustomerRequest request) {
-        validateKyc(request);
+        validateKyc(request, true);
         return customerService.create(request);
     }
 
@@ -38,7 +38,7 @@ public class CustomerController {
 
     @PutMapping("/{id}")
     public CustomerResponse update(@PathVariable Long id, @Valid @RequestBody CustomerRequest request) {
-        validateKyc(request);
+        validateKyc(request, false);
         return customerService.update(id, request);
     }
 
@@ -48,12 +48,36 @@ public class CustomerController {
         customerService.delete(id);
     }
 
-    private void validateKyc(CustomerRequest request) {
-        if (request.idType() != null && request.idType().isBlank()) {
-            throw new IllegalArgumentException("idType must not be blank");
+    private static final String ID_TYPE_PASSPORT = "PASSPORT";
+    private static final String ID_TYPE_DRIVER_LICENSE = "DRIVER_LICENSE";
+    private static final String ID_TYPE_NATIONAL_ID = "NATIONAL_ID";
+
+    private void validateKyc(CustomerRequest request, boolean requireAllOnCreate) {
+        if (requireAllOnCreate) {
+            if (request.idNumber() == null || request.idNumber().isBlank()) {
+                throw new IllegalArgumentException("idNumber is required");
+            }
+            if (request.idType() == null || request.idType().isBlank()) {
+                throw new IllegalArgumentException("idType is required");
+            }
+            if (request.dateOfBirth() == null) {
+                throw new IllegalArgumentException("dateOfBirth is required");
+            }
+        } else {
+            if (request.idNumber() != null && request.idNumber().isBlank()) {
+                throw new IllegalArgumentException("idNumber must not be blank");
+            }
+            if (request.idType() != null && request.idType().isBlank()) {
+                throw new IllegalArgumentException("idType must not be blank");
+            }
         }
-        if (request.idNumber() != null && request.idNumber().isBlank()) {
-            throw new IllegalArgumentException("idNumber must not be blank");
+
+        if (request.idType() != null) {
+            if (!ID_TYPE_PASSPORT.equals(request.idType())
+                    && !ID_TYPE_DRIVER_LICENSE.equals(request.idType())
+                    && !ID_TYPE_NATIONAL_ID.equals(request.idType())) {
+                throw new IllegalArgumentException("idType must be one of [PASSPORT, DRIVER_LICENSE, NATIONAL_ID]");
+            }
         }
     }
 }
