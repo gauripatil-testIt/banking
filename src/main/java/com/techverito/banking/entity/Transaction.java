@@ -31,7 +31,17 @@ public class Transaction {
     @Column(nullable = false)
     private TransactionStatus status;
 
+    @Column(nullable = false, updatable = false)
+    private java.time.LocalDateTime createdAt;
+
     public Transaction() {}
+
+    @PrePersist
+    private void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = java.time.LocalDateTime.now();
+        }
+    }
 
     private Transaction(Builder b) {
         this.id = b.id;
@@ -72,6 +82,8 @@ public class Transaction {
     public BigDecimal getBalanceAfter() { return balanceAfter; }
 
     public TransactionStatus getStatus() { return status; }
+
+    public java.time.LocalDateTime getCreatedAt() { return createdAt; }
 
     public void setAccount(Account v) { this.account = v; }
 
