@@ -26,6 +26,9 @@ class CustomerServiceTest {
     @Mock
     CustomerRepository customerRepository;
 
+    @Mock
+    RelationshipManagerAssignmentService relationshipManagerAssignmentService;
+
     @InjectMocks
     CustomerService customerService;
 
@@ -42,6 +45,7 @@ class CustomerServiceTest {
                 .idNumber("ID12345")
                 .idType("PASSPORT")
                 .dateOfBirth(LocalDate.of(1990, 1, 1))
+                .relationshipManagerId(99L)
                 .build();
     }
 
@@ -49,6 +53,7 @@ class CustomerServiceTest {
     void create_savesAndReturnsResponse() {
         Customer saved = customer(1L);
         when(customerRepository.save(any())).thenReturn(saved);
+        when(relationshipManagerAssignmentService.assignNext()).thenReturn(99L);
 
         CustomerResponse res = customerService.create(request());
 
@@ -58,7 +63,18 @@ class CustomerServiceTest {
         assertThat(res.idNumber()).isEqualTo("ID12345");
         assertThat(res.idType()).isEqualTo("PASSPORT");
         assertThat(res.dateOfBirth()).isEqualTo(LocalDate.of(1990, 1, 1));
+        assertThat(res.relationshipManagerId()).isEqualTo(99L);
         verify(customerRepository).save(any(Customer.class));
+    }
+
+    @Test
+    void create_noAvailableRelationshipManager_throwsException() {
+        when(relationshipManagerAssignmentService.assignNext()).thenThrow(new com.techverito.banking.exception.NoAvailableRelationshipManagerException());
+
+        assertThatThrownBy(() -> customerService.create(request()))
+                .isInstanceOf(com.techverito.banking.exception.NoAvailableRelationshipManagerException.class);
+
+        verify(customerRepository, never()).save(any(Customer.class));
     }
 
     @Test

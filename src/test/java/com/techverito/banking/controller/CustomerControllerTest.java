@@ -42,7 +42,7 @@ class CustomerControllerTest {
 
     private CustomerResponse response(Long id) {
         return new CustomerResponse(id, "John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "ID12345", "PASSPORT", LocalDate.of(1990, 1, 1));
+                "ID12345", "PASSPORT", LocalDate.of(1990, 1, 1), 99L);
     }
 
     @Test

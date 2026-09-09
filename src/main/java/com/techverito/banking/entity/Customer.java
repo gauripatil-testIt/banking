@@ -15,6 +15,9 @@ public class Customer {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column
+    private Long relationshipManagerId;
+
     @Column(nullable = false)
     private String firstName;
 
@@ -54,6 +57,7 @@ public class Customer {
         this.idNumber = b.idNumber;
         this.idType = b.idType;
         this.dateOfBirth = b.dateOfBirth;
+        this.relationshipManagerId = b.relationshipManagerId;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -68,6 +72,7 @@ public class Customer {
         private String idNumber;
         private String idType;
         private LocalDate dateOfBirth;
+        private Long relationshipManagerId;
 
         public Builder id(Long id) { this.id = id; return this; }
         public Builder firstName(String v) { this.firstName = v; return this; }
@@ -78,6 +83,7 @@ public class Customer {
         public Builder idNumber(String v) { this.idNumber = v; return this; }
         public Builder idType(String v) { this.idType = v; return this; }
         public Builder dateOfBirth(LocalDate v) { this.dateOfBirth = v; return this; }
+        public Builder relationshipManagerId(Long v) { this.relationshipManagerId = v; return this; }
         public Customer build() { return new Customer(this); }
     }
 
@@ -89,6 +95,8 @@ public class Customer {
     public CustomerStatus getStatus() { return status; }
     public List<Account> getAccounts() { return accounts; }
 
+    public Long getRelationshipManagerId() { return relationshipManagerId; }
+
     public String getIdNumber() { return idNumber; }
     public String getIdType() { return idType; }
     public LocalDate getDateOfBirth() { return dateOfBirth; }
@@ -98,6 +106,8 @@ public class Customer {
     public void setEmail(String v) { this.email = v; }
     public void setPhone(String v) { this.phone = v; }
     public void setStatus(CustomerStatus v) { this.status = v; }
+
+    public void setRelationshipManagerId(Long v) { this.relationshipManagerId = v; }
 
     public void setIdNumber(String v) { this.idNumber = v; }
     public void setIdType(String v) { this.idType = v; }

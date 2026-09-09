@@ -3,8 +3,10 @@ package com.techverito.banking.service;
 import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
+import com.techverito.banking.exception.NoAvailableRelationshipManagerException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
+import com.techverito.banking.service.RelationshipManagerAssignmentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,9 +17,11 @@ import java.util.List;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final RelationshipManagerAssignmentService relationshipManagerAssignmentService;
 
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(CustomerRepository customerRepository, RelationshipManagerAssignmentService relationshipManagerAssignmentService) {
         this.customerRepository = customerRepository;
+        this.relationshipManagerAssignmentService = relationshipManagerAssignmentService;
     }
 
     public CustomerResponse create(CustomerRequest req) {
@@ -31,6 +35,10 @@ public class CustomerService {
                 .idType(req.idType())
                 .dateOfBirth(req.dateOfBirth())
                 .build();
+
+        Long relationshipManagerId = relationshipManagerAssignmentService.assignNext();
+        customer.setRelationshipManagerId(relationshipManagerId);
+
         return CustomerResponse.from(customerRepository.save(customer));
     }
 
