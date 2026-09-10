@@ -4,6 +4,7 @@ import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerStatus;
+import com.techverito.banking.entity.IdType;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
@@ -29,14 +30,16 @@ class CustomerServiceTest {
     CustomerService customerService;
 
     private CustomerRequest request() {
-        return new CustomerRequest("John", "Doe", "john@example.com", "1234567890", CustomerStatus.ACTIVE);
+        return new CustomerRequest("John", "Doe", "john@example.com", "1234567890", CustomerStatus.ACTIVE,
+                "ID123456", IdType.NID, null);
     }
 
     private Customer customer(Long id) {
         return Customer.builder()
                 .id(id).firstName("John").lastName("Doe")
                 .email("john@example.com").phone("1234567890")
-                .status(CustomerStatus.ACTIVE).build();
+                .status(CustomerStatus.ACTIVE)
+                .idNumber("ID123456").idType(IdType.NID).build();
     }
 
     @Test
@@ -86,7 +89,8 @@ class CustomerServiceTest {
         when(customerRepository.save(any())).thenReturn(existing);
 
         CustomerResponse res = customerService.update(1L,
-                new CustomerRequest("Jane", "Smith", "jane@example.com", "999", CustomerStatus.INACTIVE));
+                new CustomerRequest("Jane", "Smith", "jane@example.com", "999", CustomerStatus.INACTIVE,
+                        "ID999999", IdType.PASSPORT, null));
 
         assertThat(res).isNotNull();
         verify(customerRepository).save(existing);

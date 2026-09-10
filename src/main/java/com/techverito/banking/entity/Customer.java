@@ -2,6 +2,7 @@ package com.techverito.banking.entity;
 
 import jakarta.persistence.*;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -29,6 +30,16 @@ public class Customer {
     @Column(nullable = false)
     private CustomerStatus status;
 
+    @Column(name = "id_number", nullable = false, unique = true, length = 32)
+    private String idNumber;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "id_type", nullable = false)
+    private IdType idType;
+
+    @Column(name = "date_of_birth", nullable = true)
+    private LocalDate dateOfBirth;
+
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Account> accounts = new ArrayList<>();
 
@@ -41,6 +52,9 @@ public class Customer {
         this.email = b.email;
         this.phone = b.phone;
         this.status = b.status;
+        this.idNumber = b.idNumber;
+        this.idType = b.idType;
+        this.dateOfBirth = b.dateOfBirth;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -52,6 +66,9 @@ public class Customer {
         private String email;
         private String phone;
         private CustomerStatus status;
+        private String idNumber;
+        private IdType idType;
+        private LocalDate dateOfBirth;
 
         public Builder id(Long id) { this.id = id; return this; }
         public Builder firstName(String v) { this.firstName = v; return this; }
@@ -59,6 +76,9 @@ public class Customer {
         public Builder email(String v) { this.email = v; return this; }
         public Builder phone(String v) { this.phone = v; return this; }
         public Builder status(CustomerStatus v) { this.status = v; return this; }
+        public Builder idNumber(String v) { this.idNumber = v; return this; }
+        public Builder idType(IdType v) { this.idType = v; return this; }
+        public Builder dateOfBirth(LocalDate v) { this.dateOfBirth = v; return this; }
         public Customer build() { return new Customer(this); }
     }
 
@@ -68,6 +88,9 @@ public class Customer {
     public String getEmail() { return email; }
     public String getPhone() { return phone; }
     public CustomerStatus getStatus() { return status; }
+    public String getIdNumber() { return idNumber; }
+    public IdType getIdType() { return idType; }
+    public LocalDate getDateOfBirth() { return dateOfBirth; }
     public List<Account> getAccounts() { return accounts; }
 
     public void setFirstName(String v) { this.firstName = v; }
@@ -75,6 +98,9 @@ public class Customer {
     public void setEmail(String v) { this.email = v; }
     public void setPhone(String v) { this.phone = v; }
     public void setStatus(CustomerStatus v) { this.status = v; }
+    public void setIdNumber(String v) { this.idNumber = v; }
+    public void setIdType(IdType v) { this.idType = v; }
+    public void setDateOfBirth(LocalDate v) { this.dateOfBirth = v; }
 
     @Override
     public boolean equals(Object o) {

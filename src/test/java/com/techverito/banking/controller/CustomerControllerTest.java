@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.CustomerStatus;
+import com.techverito.banking.entity.IdType;
 import com.techverito.banking.exception.GlobalExceptionHandler;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.service.CustomerService;
@@ -35,11 +36,13 @@ class CustomerControllerTest {
     ObjectMapper objectMapper;
 
     private CustomerRequest validRequest() {
-        return new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE);
+        return new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                "ID123456", IdType.NID, null);
     }
 
     private CustomerResponse response(Long id) {
-        return new CustomerResponse(id, "John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE);
+        return new CustomerResponse(id, "John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                "ID123456", IdType.NID, null);
     }
 
     @Test
@@ -57,7 +60,7 @@ class CustomerControllerTest {
 
     @Test
     void POST_customers_invalidBody_returns400() throws Exception {
-        CustomerRequest invalid = new CustomerRequest("", "", "not-an-email", null, null);
+        CustomerRequest invalid = new CustomerRequest("", "", "not-an-email", null, null, null, null, null);
 
         mockMvc.perform(post("/customers")
                         .contentType(MediaType.APPLICATION_JSON)
