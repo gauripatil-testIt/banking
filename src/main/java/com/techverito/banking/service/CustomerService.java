@@ -3,6 +3,7 @@ package com.techverito.banking.service;
 import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
+import com.techverito.banking.exception.InvalidCustomerRequestException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
@@ -15,12 +16,20 @@ import java.util.List;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final RelationshipManagerAssignmentService relationshipManagerAssignmentService;
 
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(CustomerRepository customerRepository,
+                            RelationshipManagerAssignmentService relationshipManagerAssignmentService) {
         this.customerRepository = customerRepository;
+        this.relationshipManagerAssignmentService = relationshipManagerAssignmentService;
     }
 
     public CustomerResponse create(CustomerRequest req) {
+        if (req.relationshipManagerId() != null) {
+            throw new InvalidCustomerRequestException(
+                    "relationshipManagerId must not be provided; it is auto-assigned");
+        }
+        Long assignedRelationshipManagerId = relationshipManagerAssignmentService.assignNext();
         Customer customer = Customer.builder()
                 .firstName(req.firstName())
                 .lastName(req.lastName())
@@ -30,6 +39,7 @@ public class CustomerService {
                 .idNumber(req.idNumber())
                 .idType(req.idType())
                 .dateOfBirth(req.dateOfBirth())
+                .relationshipManagerId(assignedRelationshipManagerId)
                 .build();
         return CustomerResponse.from(customerRepository.save(customer));
     }
@@ -69,3 +79,4 @@ public class CustomerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", id));
     }
 }
+

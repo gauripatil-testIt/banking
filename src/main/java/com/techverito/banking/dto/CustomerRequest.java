@@ -17,5 +17,6 @@ public record CustomerRequest(
         @NotNull CustomerStatus status,
         @NotBlank @Size(max = 32) String idNumber,
         @NotNull IdType idType,
-        LocalDate dateOfBirth
+        LocalDate dateOfBirth,
+        Long relationshipManagerId
 ) {}

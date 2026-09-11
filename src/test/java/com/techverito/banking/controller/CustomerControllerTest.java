@@ -6,6 +6,7 @@ import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.CustomerStatus;
 import com.techverito.banking.entity.IdType;
 import com.techverito.banking.exception.GlobalExceptionHandler;
+import com.techverito.banking.exception.InvalidCustomerRequestException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.service.CustomerService;
 import org.junit.jupiter.api.Test;
@@ -37,12 +38,12 @@ class CustomerControllerTest {
 
     private CustomerRequest validRequest() {
         return new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "ID123456", IdType.NID, null);
+                "ID123456", IdType.NID, null, null);
     }
 
     private CustomerResponse response(Long id) {
         return new CustomerResponse(id, "John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "ID123456", IdType.NID, null);
+                "ID123456", IdType.NID, null, null);
     }
 
     @Test
@@ -60,11 +61,26 @@ class CustomerControllerTest {
 
     @Test
     void POST_customers_invalidBody_returns400() throws Exception {
-        CustomerRequest invalid = new CustomerRequest("", "", "not-an-email", null, null, null, null, null);
+        CustomerRequest invalid = new CustomerRequest("", "", "not-an-email", null, null, null, null, null, null);
 
         mockMvc.perform(post("/customers")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalid)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void POST_customers_withRelationshipManagerId_returns400() throws Exception {
+        CustomerRequest requestWithRm = new CustomerRequest("John", "Doe", "john@example.com", "123",
+                CustomerStatus.ACTIVE, "ID123456", IdType.NID, null, 5L);
+
+        when(customerService.create(any()))
+                .thenThrow(new InvalidCustomerRequestException(
+                        "relationshipManagerId must not be provided; it is auto-assigned"));
+
+        mockMvc.perform(post("/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestWithRm)))
                 .andExpect(status().isBadRequest());
     }
 

@@ -5,6 +5,7 @@ import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerStatus;
 import com.techverito.banking.entity.IdType;
+import com.techverito.banking.exception.InvalidCustomerRequestException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
@@ -26,12 +27,15 @@ class CustomerServiceTest {
     @Mock
     CustomerRepository customerRepository;
 
+    @Mock
+    RelationshipManagerAssignmentService relationshipManagerAssignmentService;
+
     @InjectMocks
     CustomerService customerService;
 
     private CustomerRequest request() {
         return new CustomerRequest("John", "Doe", "john@example.com", "1234567890", CustomerStatus.ACTIVE,
-                "ID123456", IdType.NID, null);
+                "ID123456", IdType.NID, null, null);
     }
 
     private Customer customer(Long id) {
@@ -45,6 +49,7 @@ class CustomerServiceTest {
     @Test
     void create_savesAndReturnsResponse() {
         Customer saved = customer(1L);
+        when(relationshipManagerAssignmentService.assignNext()).thenReturn(null);
         when(customerRepository.save(any())).thenReturn(saved);
 
         CustomerResponse res = customerService.create(request());
@@ -53,6 +58,47 @@ class CustomerServiceTest {
         assertThat(res.firstName()).isEqualTo("John");
         assertThat(res.status()).isEqualTo(CustomerStatus.ACTIVE);
         verify(customerRepository).save(any(Customer.class));
+    }
+
+    @Test
+    void create_assignsRelationshipManagerFromAssignmentService() {
+        Customer saved = Customer.builder()
+                .id(1L).firstName("John").lastName("Doe")
+                .email("john@example.com").phone("1234567890")
+                .status(CustomerStatus.ACTIVE)
+                .idNumber("ID123456").idType(IdType.NID)
+                .relationshipManagerId(7L).build();
+        when(relationshipManagerAssignmentService.assignNext()).thenReturn(7L);
+        when(customerRepository.save(any())).thenReturn(saved);
+
+        CustomerResponse res = customerService.create(request());
+
+        assertThat(res.relationshipManagerId()).isEqualTo(7L);
+        verify(customerRepository).save(argThat(c -> java.util.Objects.equals(c.getRelationshipManagerId(), 7L)));
+    }
+
+    @Test
+    void create_noActiveRelationshipManagers_assignsNull() {
+        Customer saved = customer(1L);
+        when(relationshipManagerAssignmentService.assignNext()).thenReturn(null);
+        when(customerRepository.save(any())).thenReturn(saved);
+
+        CustomerResponse res = customerService.create(request());
+
+        assertThat(res.relationshipManagerId()).isNull();
+        verify(customerRepository).save(argThat(c -> c.getRelationshipManagerId() == null));
+    }
+
+    @Test
+    void create_requestSuppliesRelationshipManagerId_throwsException() {
+        CustomerRequest req = new CustomerRequest("John", "Doe", "john@example.com", "1234567890",
+                CustomerStatus.ACTIVE, "ID123456", IdType.NID, null, 5L);
+
+        assertThatThrownBy(() -> customerService.create(req))
+                .isInstanceOf(InvalidCustomerRequestException.class);
+
+        verifyNoInteractions(customerRepository);
+        verifyNoInteractions(relationshipManagerAssignmentService);
     }
 
     @Test
@@ -90,7 +136,7 @@ class CustomerServiceTest {
 
         CustomerResponse res = customerService.update(1L,
                 new CustomerRequest("Jane", "Smith", "jane@example.com", "999", CustomerStatus.INACTIVE,
-                        "ID999999", IdType.PASSPORT, null));
+                        "ID999999", IdType.PASSPORT, null, null));
 
         assertThat(res).isNotNull();
         verify(customerRepository).save(existing);
