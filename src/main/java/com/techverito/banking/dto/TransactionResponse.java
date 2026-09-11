@@ -14,15 +14,14 @@ public record TransactionResponse(
         BigDecimal balanceAfter,
         TransactionStatus status
 ) {
-
-    public static TransactionResponse from(Transaction transaction) {
+    public static TransactionResponse from(Transaction t) {
         return new TransactionResponse(
-                transaction.getId(),
-                transaction.getAccount().getId(),
-                transaction.getType(),
-                transaction.getAmount(),
-                transaction.getBalanceAfter(),
-                transaction.getStatus()
+                t.getId(),
+                t.getAccount().getId(),
+                t.getType(),
+                t.getAmount(),
+                t.getBalanceAfter(),
+                t.getStatus()
         );
     }
 }

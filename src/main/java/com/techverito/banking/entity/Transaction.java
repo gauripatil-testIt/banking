@@ -3,7 +3,6 @@ package com.techverito.banking.entity;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
-import java.util.Objects;
 
 @Entity
 @Table(name = "transactions")
@@ -13,7 +12,7 @@ public class Transaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "account_id", nullable = false)
     private Account account;
 
@@ -33,16 +32,79 @@ public class Transaction {
 
     public Transaction() {}
 
-    private Transaction(Builder b) {
-        this.id = b.id;
-        this.account = b.account;
-        this.type = b.type;
-        this.amount = b.amount;
-        this.balanceAfter = b.balanceAfter;
-        this.status = b.status;
+    private Transaction(Long id, Account account, TransactionType type, BigDecimal amount, BigDecimal balanceAfter, TransactionStatus status) {
+        this.id = id;
+        this.account = account;
+        this.type = type;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+        this.status = status;
     }
 
-    public static Builder builder() { return new Builder(); }
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Account getAccount() {
+        return account;
+    }
+
+    public void setAccount(Account account) {
+        this.account = account;
+    }
+
+    public TransactionType getType() {
+        return type;
+    }
+
+    public void setType(TransactionType type) {
+        this.type = type;
+    }
+
+    public BigDecimal getAmount() {
+        return amount;
+    }
+
+    public void setAmount(BigDecimal amount) {
+        this.amount = amount;
+    }
+
+    public BigDecimal getBalanceAfter() {
+        return balanceAfter;
+    }
+
+    public void setBalanceAfter(BigDecimal balanceAfter) {
+        this.balanceAfter = balanceAfter;
+    }
+
+    public TransactionStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(TransactionStatus status) {
+        this.status = status;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Transaction that = (Transaction) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31;
+    }
 
     public static class Builder {
         private Long id;
@@ -52,44 +114,40 @@ public class Transaction {
         private BigDecimal balanceAfter;
         private TransactionStatus status;
 
-        public Builder id(Long v) { this.id = v; return this; }
-        public Builder account(Account v) { this.account = v; return this; }
-        public Builder type(TransactionType v) { this.type = v; return this; }
-        public Builder amount(BigDecimal v) { this.amount = v; return this; }
-        public Builder balanceAfter(BigDecimal v) { this.balanceAfter = v; return this; }
-        public Builder status(TransactionStatus v) { this.status = v; return this; }
-        public Transaction build() { return new Transaction(this); }
+        private Builder() {}
+
+        public Builder id(Long id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder account(Account account) {
+            this.account = account;
+            return this;
+        }
+
+        public Builder type(TransactionType type) {
+            this.type = type;
+            return this;
+        }
+
+        public Builder amount(BigDecimal amount) {
+            this.amount = amount;
+            return this;
+        }
+
+        public Builder balanceAfter(BigDecimal balanceAfter) {
+            this.balanceAfter = balanceAfter;
+            return this;
+        }
+
+        public Builder status(TransactionStatus status) {
+            this.status = status;
+            return this;
+        }
+
+        public Transaction build() {
+            return new Transaction(id, account, type, amount, balanceAfter, status);
+        }
     }
-
-    public Long getId() { return id; }
-
-    public Account getAccount() { return account; }
-
-    public TransactionType getType() { return type; }
-
-    public BigDecimal getAmount() { return amount; }
-
-    public BigDecimal getBalanceAfter() { return balanceAfter; }
-
-    public TransactionStatus getStatus() { return status; }
-
-    public void setAccount(Account v) { this.account = v; }
-
-    public void setType(TransactionType v) { this.type = v; }
-
-    public void setAmount(BigDecimal v) { this.amount = v; }
-
-    public void setBalanceAfter(BigDecimal v) { this.balanceAfter = v; }
-
-    public void setStatus(TransactionStatus v) { this.status = v; }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Transaction t)) return false;
-        return Objects.equals(id, t.id);
-    }
-
-    @Override
-    public int hashCode() { return Objects.hashCode(id); }
 }
