@@ -120,6 +120,46 @@ class TransactionControllerTest {
     }
 
     @Test
+    void GET_transactions_noFilters_returnsAll() throws Exception {
+        when(transactionService.list(null, null, null)).thenReturn(List.of(response(1L), response(2L)));
+
+        mockMvc.perform(get("/transactions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    void GET_transactions_withFilters_returnsMatching() throws Exception {
+        when(transactionService.list(TransactionStatus.COMPLETED, TransactionType.DEPOSIT, 1L))
+                .thenReturn(List.of(response(1L)));
+
+        mockMvc.perform(get("/transactions")
+                        .param("status", "COMPLETED")
+                        .param("type", "DEPOSIT")
+                        .param("customerId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].status").value("COMPLETED"))
+                .andExpect(jsonPath("$[0].type").value("DEPOSIT"));
+    }
+
+    @Test
+    void GET_transactions_singleStatusFilter_returnsMatching() throws Exception {
+        when(transactionService.list(TransactionStatus.COMPLETED, null, null))
+                .thenReturn(List.of(response(1L)));
+
+        mockMvc.perform(get("/transactions").param("status", "COMPLETED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void GET_transactions_invalidStatus_returns400() throws Exception {
+        mockMvc.perform(get("/transactions").param("status", "FOO"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void PUT_transactions_id_returns200() throws Exception {
         when(transactionService.update(eq(1L), any())).thenReturn(response(1L));
 

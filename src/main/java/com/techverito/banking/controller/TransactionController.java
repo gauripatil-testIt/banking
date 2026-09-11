@@ -2,6 +2,8 @@ package com.techverito.banking.controller;
 
 import com.techverito.banking.dto.TransactionRequest;
 import com.techverito.banking.dto.TransactionResponse;
+import com.techverito.banking.entity.TransactionStatus;
+import com.techverito.banking.entity.TransactionType;
 import com.techverito.banking.service.TransactionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -27,6 +29,13 @@ public class TransactionController {
     @GetMapping("/accounts/{accountId}/transactions")
     public List<TransactionResponse> list(@PathVariable Long accountId) {
         return transactionService.list(accountId);
+    }
+
+    @GetMapping("/transactions")
+    public List<TransactionResponse> list(@RequestParam(required = false) TransactionStatus status,
+                                           @RequestParam(required = false) TransactionType type,
+                                           @RequestParam(required = false) Long customerId) {
+        return transactionService.list(status, type, customerId);
     }
 
     @GetMapping("/transactions/{id}")

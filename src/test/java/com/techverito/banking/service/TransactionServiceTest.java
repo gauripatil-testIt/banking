@@ -148,6 +148,38 @@ class TransactionServiceTest {
     }
 
     @Test
+    void list_byFilters_delegatesToRepositoryAndMapsResults() {
+        Account acc = account(1L, BigDecimal.valueOf(1000));
+        Transaction t = transaction(1L, acc, TransactionType.DEPOSIT,
+                BigDecimal.valueOf(200), BigDecimal.valueOf(1200), TransactionStatus.COMPLETED);
+        when(transactionRepository.findByFilters(TransactionStatus.COMPLETED, TransactionType.DEPOSIT, 1L))
+                .thenReturn(List.of(t));
+
+        List<TransactionResponse> res = transactionService.list(TransactionStatus.COMPLETED, TransactionType.DEPOSIT, 1L);
+
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).id()).isEqualTo(1L);
+        assertThat(res.get(0).status()).isEqualTo(TransactionStatus.COMPLETED);
+        assertThat(res.get(0).type()).isEqualTo(TransactionType.DEPOSIT);
+        verify(transactionRepository).findByFilters(TransactionStatus.COMPLETED, TransactionType.DEPOSIT, 1L);
+    }
+
+    @Test
+    void list_byFilters_noFilters_returnsAll() {
+        Account acc = account(1L, BigDecimal.valueOf(1000));
+        Transaction t1 = transaction(1L, acc, TransactionType.DEPOSIT,
+                BigDecimal.valueOf(200), BigDecimal.valueOf(1200), TransactionStatus.COMPLETED);
+        Transaction t2 = transaction(2L, acc, TransactionType.WITHDRAWAL,
+                BigDecimal.valueOf(100), BigDecimal.valueOf(1100), TransactionStatus.PENDING);
+        when(transactionRepository.findByFilters(null, null, null)).thenReturn(List.of(t1, t2));
+
+        List<TransactionResponse> res = transactionService.list(null, null, null);
+
+        assertThat(res).hasSize(2);
+        verify(transactionRepository).findByFilters(null, null, null);
+    }
+
+    @Test
     void update_found_updatesAndReturns() {
         Account acc = account(1L, BigDecimal.valueOf(1000));
         Transaction existing = transaction(1L, acc, TransactionType.DEPOSIT,
