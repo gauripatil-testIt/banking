@@ -16,4 +16,8 @@ public record CustomerRequest(
         String idNumber,
         String idType,
         LocalDate dateOfBirth
-) {}
+) {
+    public CustomerRequest(String firstName, String lastName, String email, String phone, CustomerStatus status) {
+        this(firstName, lastName, email, phone, status, null, null, null);
+    }
+}

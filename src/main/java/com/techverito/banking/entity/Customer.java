@@ -30,13 +30,10 @@ public class Customer {
     @Column(nullable = false)
     private CustomerStatus status;
 
-    @Column
     private String idNumber;
 
-    @Column
     private String idType;
 
-    @Column
     private LocalDate dateOfBirth;
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -88,7 +85,6 @@ public class Customer {
     public String getPhone() { return phone; }
     public CustomerStatus getStatus() { return status; }
     public List<Account> getAccounts() { return accounts; }
-
     public String getIdNumber() { return idNumber; }
     public String getIdType() { return idType; }
     public LocalDate getDateOfBirth() { return dateOfBirth; }
@@ -98,7 +94,6 @@ public class Customer {
     public void setEmail(String v) { this.email = v; }
     public void setPhone(String v) { this.phone = v; }
     public void setStatus(CustomerStatus v) { this.status = v; }
-
     public void setIdNumber(String v) { this.idNumber = v; }
     public void setIdType(String v) { this.idType = v; }
     public void setDateOfBirth(LocalDate v) { this.dateOfBirth = v; }

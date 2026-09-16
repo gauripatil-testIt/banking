@@ -53,17 +53,9 @@ public class CustomerService {
         customer.setEmail(req.email());
         customer.setPhone(req.phone());
         customer.setStatus(req.status());
-
-        if (req.idNumber() != null) {
-            customer.setIdNumber(req.idNumber());
-        }
-        if (req.idType() != null) {
-            customer.setIdType(req.idType());
-        }
-        if (req.dateOfBirth() != null) {
-            customer.setDateOfBirth(req.dateOfBirth());
-        }
-
+        customer.setIdNumber(req.idNumber());
+        customer.setIdType(req.idType());
+        customer.setDateOfBirth(req.dateOfBirth());
         return CustomerResponse.from(customerRepository.save(customer));
     }
 
