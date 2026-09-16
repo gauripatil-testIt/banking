@@ -37,11 +37,13 @@ class TransactionControllerTest {
     ObjectMapper objectMapper;
 
     private TransactionRequest validRequest() {
-        return new TransactionRequest(1L, TransactionType.DEPOSIT, BigDecimal.valueOf(100), BigDecimal.valueOf(1100), TransactionStatus.COMPLETED);
+        return new TransactionRequest(1L, TransactionType.DEPOSIT, BigDecimal.valueOf(100),
+                BigDecimal.valueOf(1100), TransactionStatus.COMPLETED);
     }
 
     private TransactionResponse response(Long id) {
-        return new TransactionResponse(id, 1L, TransactionType.DEPOSIT, BigDecimal.valueOf(100), BigDecimal.valueOf(1100), TransactionStatus.COMPLETED);
+        return new TransactionResponse(id, 1L, TransactionType.DEPOSIT, BigDecimal.valueOf(100),
+                BigDecimal.valueOf(1100), TransactionStatus.COMPLETED);
     }
 
     @Test
@@ -73,7 +75,7 @@ class TransactionControllerTest {
 
         mockMvc.perform(get("/transactions/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.accountId").value(1))
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
     }
 

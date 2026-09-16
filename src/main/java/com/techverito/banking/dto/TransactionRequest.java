@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 public record TransactionRequest(
         @NotNull Long accountId,
         @NotNull TransactionType type,
-        @NotNull @DecimalMin(value = "0.0", inclusive = false) BigDecimal amount,
+        @NotNull @DecimalMin("0.0") BigDecimal amount,
         @NotNull BigDecimal balanceAfter,
         @NotNull TransactionStatus status
 ) {}

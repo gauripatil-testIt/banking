@@ -16,12 +16,8 @@ public record TransactionResponse(
 ) {
     public static TransactionResponse from(Transaction t) {
         return new TransactionResponse(
-                t.getId(),
-                t.getAccount().getId(),
-                t.getType(),
-                t.getAmount(),
-                t.getBalanceAfter(),
-                t.getStatus()
+                t.getId(), t.getAccount().getId(), t.getType(),
+                t.getAmount(), t.getBalanceAfter(), t.getStatus()
         );
     }
 }
