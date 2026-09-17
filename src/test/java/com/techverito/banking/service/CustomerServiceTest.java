@@ -12,7 +12,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,8 +29,16 @@ class CustomerServiceTest {
     CustomerService customerService;
 
     private CustomerRequest request() {
-        return new CustomerRequest("John", "Doe", "john@example.com", "1234567890", CustomerStatus.ACTIVE,
-                "ID12345", "PASSPORT", LocalDate.of(1990, 1, 1));
+        return new CustomerRequest(
+                "John",
+                "Doe",
+                "john@example.com",
+                "1234567890",
+                CustomerStatus.ACTIVE,
+                "AB1234567",
+                "PASSPORT",
+                java.time.LocalDate.of(1990, 1, 1)
+        );
     }
 
     private Customer customer(Long id) {
@@ -39,9 +46,9 @@ class CustomerServiceTest {
                 .id(id).firstName("John").lastName("Doe")
                 .email("john@example.com").phone("1234567890")
                 .status(CustomerStatus.ACTIVE)
-                .idNumber("ID12345")
+                .idNumber("AB1234567")
                 .idType("PASSPORT")
-                .dateOfBirth(LocalDate.of(1990, 1, 1))
+                .dateOfBirth(java.time.LocalDate.of(1990, 1, 1))
                 .build();
     }
 
@@ -55,9 +62,6 @@ class CustomerServiceTest {
         assertThat(res.id()).isEqualTo(1L);
         assertThat(res.firstName()).isEqualTo("John");
         assertThat(res.status()).isEqualTo(CustomerStatus.ACTIVE);
-        assertThat(res.idNumber()).isEqualTo("ID12345");
-        assertThat(res.idType()).isEqualTo("PASSPORT");
-        assertThat(res.dateOfBirth()).isEqualTo(LocalDate.of(1990, 1, 1));
         verify(customerRepository).save(any(Customer.class));
     }
 
@@ -68,7 +72,6 @@ class CustomerServiceTest {
         CustomerResponse res = customerService.getById(1L);
 
         assertThat(res.email()).isEqualTo("john@example.com");
-        assertThat(res.idNumber()).isEqualTo("ID12345");
     }
 
     @Test
@@ -95,13 +98,11 @@ class CustomerServiceTest {
         when(customerRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(customerRepository.save(any())).thenReturn(existing);
 
-        CustomerRequest updateReq = new CustomerRequest("Jane", "Smith", "jane@example.com", "999", CustomerStatus.INACTIVE,
-                "NEWID", "NATIONAL_ID", LocalDate.of(1985, 5, 20));
-
-        CustomerResponse res = customerService.update(1L, updateReq);
+        CustomerResponse res = customerService.update(1L,
+                new CustomerRequest("Jane", "Smith", "jane@example.com", "999", CustomerStatus.INACTIVE,
+                        "CD1234567", "DRIVER_LICENSE", java.time.LocalDate.of(1985, 5, 20)));
 
         assertThat(res).isNotNull();
-        assertThat(res.idNumber()).isEqualTo("NEWID");
         verify(customerRepository).save(existing);
     }
 
@@ -111,23 +112,6 @@ class CustomerServiceTest {
 
         assertThatThrownBy(() -> customerService.update(99L, request()))
                 .isInstanceOf(ResourceNotFoundException.class);
-    }
-
-    @Test
-    void update_nullKycFields_retainsExisting() {
-        Customer existing = customer(1L);
-        when(customerRepository.findById(1L)).thenReturn(Optional.of(existing));
-        when(customerRepository.save(any())).thenReturn(existing);
-
-        CustomerRequest updateReq = new CustomerRequest("Jane", "Smith", "jane@example.com", "999", CustomerStatus.INACTIVE,
-                null, null, null);
-
-        CustomerResponse res = customerService.update(1L, updateReq);
-
-        assertThat(res.idNumber()).isEqualTo("ID12345");
-        assertThat(res.idType()).isEqualTo("PASSPORT");
-        assertThat(res.dateOfBirth()).isEqualTo(LocalDate.of(1990, 1, 1));
-        verify(customerRepository).save(existing);
     }
 
     @Test

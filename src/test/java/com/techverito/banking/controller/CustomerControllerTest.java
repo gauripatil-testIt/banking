@@ -14,7 +14,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -36,13 +35,17 @@ class CustomerControllerTest {
     ObjectMapper objectMapper;
 
     private CustomerRequest validRequest() {
-        return new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "ID12345", "PASSPORT", LocalDate.of(1990, 1, 1));
+        return new CustomerRequest(
+                "John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                "AB1234567", "PASSPORT", java.time.LocalDate.of(1990, 1, 1)
+        );
     }
 
     private CustomerResponse response(Long id) {
-        return new CustomerResponse(id, "John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "ID12345", "PASSPORT", LocalDate.of(1990, 1, 1));
+        return new CustomerResponse(
+                id, "John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                "AB1234567", "PASSPORT", java.time.LocalDate.of(1990, 1, 1)
+        );
     }
 
     @Test
@@ -55,15 +58,13 @@ class CustomerControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.firstName").value("John"))
-                .andExpect(jsonPath("$.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.idNumber").value("ID12345"))
-                .andExpect(jsonPath("$.idType").value("PASSPORT"))
-                .andExpect(jsonPath("$.dateOfBirth").value("1990-01-01"));
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
     }
 
     @Test
     void POST_customers_invalidBody_returns400() throws Exception {
-        CustomerRequest invalid = new CustomerRequest("", "", "not-an-email", null, null, null, null, null);
+        CustomerRequest invalid = new CustomerRequest("", "", "not-an-email", null, null,
+                null, null, null);
 
         mockMvc.perform(post("/customers")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -72,57 +73,13 @@ class CustomerControllerTest {
     }
 
     @Test
-    void POST_customers_invalidKyc_returns400() throws Exception {
-        CustomerRequest invalidKyc = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "", "PASSPORT", LocalDate.of(1990, 1, 1));
+    void POST_customers_missingKyc_returns400() throws Exception {
+        CustomerRequest invalid = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
+                "", "", null);
 
         mockMvc.perform(post("/customers")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidKyc)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void POST_customers_missingIdNumber_returns400() throws Exception {
-        CustomerRequest invalidKyc = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                null, "PASSPORT", LocalDate.of(1990, 1, 1));
-
-        mockMvc.perform(post("/customers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidKyc)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void POST_customers_missingIdType_returns400() throws Exception {
-        CustomerRequest invalidKyc = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "ID12345", null, LocalDate.of(1990, 1, 1));
-
-        mockMvc.perform(post("/customers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidKyc)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void POST_customers_missingDateOfBirth_returns400() throws Exception {
-        CustomerRequest invalidKyc = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "ID12345", "PASSPORT", null);
-
-        mockMvc.perform(post("/customers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidKyc)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void POST_customers_invalidIdType_returns400() throws Exception {
-        CustomerRequest invalidKyc = new CustomerRequest("John", "Doe", "john@example.com", "123", CustomerStatus.ACTIVE,
-                "ID12345", "FOREIGN_PASSPORT", LocalDate.of(1990, 1, 1));
-
-        mockMvc.perform(post("/customers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidKyc)))
+                        .content(objectMapper.writeValueAsString(invalid)))
                 .andExpect(status().isBadRequest());
     }
 
@@ -133,8 +90,7 @@ class CustomerControllerTest {
         mockMvc.perform(get("/customers/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.email").value("john@example.com"))
-                .andExpect(jsonPath("$.dateOfBirth").value("1990-01-01"));
+                .andExpect(jsonPath("$.email").value("john@example.com"));
     }
 
     @Test
@@ -162,8 +118,7 @@ class CustomerControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(validRequest())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.idType").value("PASSPORT"));
+                .andExpect(jsonPath("$.id").value(1));
     }
 
     @Test

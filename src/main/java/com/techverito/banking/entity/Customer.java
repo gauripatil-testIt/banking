@@ -31,9 +31,7 @@ public class Customer {
     private CustomerStatus status;
 
     private String idNumber;
-
     private String idType;
-
     private LocalDate dateOfBirth;
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -84,10 +82,10 @@ public class Customer {
     public String getEmail() { return email; }
     public String getPhone() { return phone; }
     public CustomerStatus getStatus() { return status; }
-    public List<Account> getAccounts() { return accounts; }
     public String getIdNumber() { return idNumber; }
     public String getIdType() { return idType; }
     public LocalDate getDateOfBirth() { return dateOfBirth; }
+    public List<Account> getAccounts() { return accounts; }
 
     public void setFirstName(String v) { this.firstName = v; }
     public void setLastName(String v) { this.lastName = v; }

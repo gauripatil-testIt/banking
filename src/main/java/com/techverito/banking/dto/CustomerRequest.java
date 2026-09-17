@@ -13,11 +13,7 @@ public record CustomerRequest(
         @Email @NotBlank String email,
         String phone,
         @NotNull CustomerStatus status,
-        String idNumber,
-        String idType,
-        LocalDate dateOfBirth
-) {
-    public CustomerRequest(String firstName, String lastName, String email, String phone, CustomerStatus status) {
-        this(firstName, lastName, email, phone, status, null, null, null);
-    }
-}
+        @NotBlank String idNumber,
+        @NotBlank String idType,
+        @NotNull LocalDate dateOfBirth
+) {}
