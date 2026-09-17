@@ -1,92 +1,47 @@
 package com.techverito.banking.service;
 
-import com.techverito.banking.entity.RelationshipManager;
-import com.techverito.banking.entity.RelationshipManagerStatus;
-import com.techverito.banking.entity.RoundRobinState;
-import com.techverito.banking.exception.NoAvailableRelationshipManagerException;
-import com.techverito.banking.repository.RelationshipManagerRepository;
-import com.techverito.banking.repository.RoundRobinStateRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class RelationshipManagerAssignmentService {
 
-    private final RelationshipManagerRepository relationshipManagerRepository;
-    private final RoundRobinStateRepository roundRobinStateRepository;
+    private static final List<String> DEFAULT_MANAGERS = List.of("manager1", "manager2", "manager3");
 
-    public RelationshipManagerAssignmentService(RelationshipManagerRepository relationshipManagerRepository,
-                                                RoundRobinStateRepository roundRobinStateRepository) {
-        this.relationshipManagerRepository = relationshipManagerRepository;
-        this.roundRobinStateRepository = roundRobinStateRepository;
+    private static final AtomicInteger counter = new AtomicInteger(0);
+
+    private static volatile List<String> managers = DEFAULT_MANAGERS;
+
+    public RelationshipManagerAssignmentService(
+            @Value("${banking.relationship-managers:}") String relationshipManagers) {
+        managers = parseManagers(relationshipManagers);
     }
 
-    @Transactional
-    public Long assignNext() {
-        RoundRobinState roundRobinState = roundRobinStateRepository.findByIdForUpdate(1L)
-                .orElseGet(() -> {
-                    RoundRobinState state = new RoundRobinState();
-                    state.setId(1L);
-                    state.setLastAssignedManagerId(null);
-                    return state;
-                });
-
-        List<RelationshipManager> activeManagers = relationshipManagerRepository
-                .findByStatusOrderedById(RelationshipManagerStatus.ACTIVE);
-
-        if (activeManagers == null || activeManagers.isEmpty()) {
-            throw new NoAvailableRelationshipManagerException("No active relationship managers available");
+    private static List<String> parseManagers(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return DEFAULT_MANAGERS;
         }
-
-        activeManagers.sort(Comparator.comparing(RelationshipManager::getId));
-
-        Long lastAssignedManagerId = roundRobinState.getLastAssignedManagerId();
-
-        int startIndex = 0;
-        if (lastAssignedManagerId != null) {
-            int idx = -1;
-            for (int i = 0; i < activeManagers.size(); i++) {
-                if (activeManagers.get(i).getId().equals(lastAssignedManagerId)) {
-                    idx = i;
-                    break;
-                }
-            }
-            startIndex = idx >= 0 ? (idx + 1) % activeManagers.size() : 0;
-        }
-
-        RelationshipManager chosen = null;
-        for (int offset = 0; offset < activeManagers.size(); offset++) {
-            RelationshipManager candidate = activeManagers.get((startIndex + offset) % activeManagers.size());
-            if (candidate.getAssignedCount() < candidate.getMaxCapacity()) {
-                chosen = candidate;
-                break;
+        List<String> parsed = new ArrayList<>();
+        for (String name : raw.split(",")) {
+            String trimmed = name.trim();
+            if (!trimmed.isEmpty()) {
+                parsed.add(trimmed);
             }
         }
+        return parsed.isEmpty() ? DEFAULT_MANAGERS : Collections.unmodifiableList(parsed);
+    }
 
-        if (chosen == null) {
-            throw new NoAvailableRelationshipManagerException("All active relationship managers are at capacity");
+    public static String assignNext() {
+        List<String> pool = managers;
+        if (pool == null || pool.isEmpty()) {
+            throw new IllegalStateException("No relationship managers configured for assignment");
         }
-
-        // Lock the chosen manager row to update assignedCount atomically.
-        Optional<RelationshipManager> lockedChosenOpt = relationshipManagerRepository.findByIdForUpdate(chosen.getId());
-        RelationshipManager lockedChosen = lockedChosenOpt
-                .orElseThrow(() -> new NoAvailableRelationshipManagerException("Selected relationship manager not found"));
-
-        if (lockedChosen.getAssignedCount() >= lockedChosen.getMaxCapacity()) {
-            // Capacity changed since the initial scan; treat as no availability for strictness.
-            throw new NoAvailableRelationshipManagerException("All active relationship managers are at capacity");
-        }
-
-        lockedChosen.setAssignedCount(lockedChosen.getAssignedCount() + 1);
-        RelationshipManager savedManager = relationshipManagerRepository.save(lockedChosen);
-
-        roundRobinState.setLastAssignedManagerId(savedManager.getId());
-        roundRobinStateRepository.save(roundRobinState);
-
-        return savedManager.getId();
+        int index = Math.floorMod(counter.getAndIncrement(), pool.size());
+        return pool.get(index);
     }
 }

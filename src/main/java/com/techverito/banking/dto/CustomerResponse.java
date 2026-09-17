@@ -15,14 +15,14 @@ public record CustomerResponse(
         String idNumber,
         String idType,
         LocalDate dateOfBirth,
-        Long relationshipManagerId
+        String relationshipManagerName
 ) {
     public static CustomerResponse from(Customer c) {
         return new CustomerResponse(
                 c.getId(), c.getFirstName(), c.getLastName(),
                 c.getEmail(), c.getPhone(), c.getStatus(),
                 c.getIdNumber(), c.getIdType(), c.getDateOfBirth(),
-                c.getRelationshipManagerId()
+                c.getRelationshipManagerName()
         );
     }
 }
