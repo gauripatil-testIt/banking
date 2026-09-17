@@ -1,85 +1,81 @@
 package com.techverito.banking.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techverito.banking.dto.TransactionResponse;
 import com.techverito.banking.entity.TransactionStatus;
 import com.techverito.banking.entity.TransactionType;
+import com.techverito.banking.exception.GlobalExceptionHandler;
 import com.techverito.banking.service.TransactionService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentMatchers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.util.List;
 
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@ExtendWith(SpringExtension.class)
-@WebMvcTest(TransactionController.class)
+@WebMvcTest({TransactionController.class, GlobalExceptionHandler.class})
 class TransactionControllerTest {
 
     @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    MockMvc mockMvc;
 
     @MockBean
-    private TransactionService transactionService;
+    TransactionService transactionService;
 
-    @Test
-    void getTransactions_shouldReturnJsonArray_whenNoQueryParamsProvided() throws Exception {
-        TransactionResponse r1 = TransactionResponse.from(null);
-
-        Pageable pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<TransactionResponse> page = new PageImpl<>(List.of(r1), pageable, 1);
-
-        when(transactionService.list(ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), any(Pageable.class)))
-                .thenReturn(page);
-
-        mockMvc.perform(get("/transactions")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$[0]").exists());
-
-        verify(transactionService).list(isNull(), isNull(), isNull(), any(Pageable.class));
+    private TransactionResponse response(Long id, TransactionType type, TransactionStatus status) {
+        return new TransactionResponse(id, 1L, type, BigDecimal.valueOf(100), BigDecimal.valueOf(900), status);
     }
 
     @Test
-    void getTransactions_shouldApplyQueryParams() throws Exception {
-        TransactionResponse r1 = TransactionResponse.from(null);
+    void GET_transactions_noParams_returnsAll() throws Exception {
+        when(transactionService.list(null, null, null)).thenReturn(List.of(
+                response(1L, TransactionType.DEPOSIT, TransactionStatus.COMPLETED),
+                response(2L, TransactionType.WITHDRAWAL, TransactionStatus.PENDING)
+        ));
 
-        TransactionStatus status = TransactionStatus.COMPLETED;
-        TransactionType type = TransactionType.DEPOSIT;
-        Long customerId = 1L;
-
-        Pageable pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<TransactionResponse> page = new PageImpl<>(List.of(r1), pageable, 1);
-
-        when(transactionService.list(eq(status), eq(type), eq(customerId), any(Pageable.class)))
-                .thenReturn(page);
-
-        mockMvc.perform(get("/transactions")
-                        .param("status", status.name())
-                        .param("type", type.name())
-                        .param("customerId", String.valueOf(customerId))
-                        .accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get("/transactions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0]").exists());
+                .andExpect(jsonPath("$.length()").value(2));
+    }
 
-        verify(transactionService).list(eq(status), eq(type), eq(customerId), any(Pageable.class));
+    @Test
+    void GET_transactions_withStatusFilter_returnsFiltered() throws Exception {
+        when(transactionService.list(TransactionStatus.COMPLETED, null, null)).thenReturn(List.of(
+                response(1L, TransactionType.DEPOSIT, TransactionStatus.COMPLETED)
+        ));
+
+        mockMvc.perform(get("/transactions").param("status", "COMPLETED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].status").value("COMPLETED"));
+    }
+
+    @Test
+    void GET_transactions_withTypeAndCustomerIdFilter_combinesAsAnd() throws Exception {
+        when(transactionService.list(null, TransactionType.DEPOSIT, 1L)).thenReturn(List.of(
+                response(1L, TransactionType.DEPOSIT, TransactionStatus.COMPLETED)
+        ));
+
+        mockMvc.perform(get("/transactions").param("type", "DEPOSIT").param("customerId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].type").value("DEPOSIT"));
+    }
+
+    @Test
+    void GET_transactions_invalidStatus_returns400() throws Exception {
+        mockMvc.perform(get("/transactions").param("status", "bogus"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void GET_transactions_invalidType_returns400() throws Exception {
+        mockMvc.perform(get("/transactions").param("type", "bogus"))
+                .andExpect(status().isBadRequest());
     }
 }

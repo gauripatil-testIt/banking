@@ -1,117 +1,127 @@
 package com.techverito.banking.service;
 
 import com.techverito.banking.dto.TransactionResponse;
-import com.techverito.banking.entity.Account;
-import com.techverito.banking.entity.Customer;
-import com.techverito.banking.entity.Transaction;
-import com.techverito.banking.entity.TransactionStatus;
-import com.techverito.banking.entity.TransactionType;
+import com.techverito.banking.entity.*;
 import com.techverito.banking.repository.TransactionRepository;
-import com.techverito.banking.repository.TransactionSpecifications;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 
+import java.math.BigDecimal;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
 
     @Mock
-    private TransactionRepository transactionRepository;
+    TransactionRepository transactionRepository;
 
     @InjectMocks
-    private TransactionService transactionService;
+    TransactionService transactionService;
 
     private Customer customer(Long id) {
         return Customer.builder()
                 .id(id).firstName("John").lastName("Doe")
                 .email("john@example.com").phone("123")
-                .status(com.techverito.banking.entity.CustomerStatus.ACTIVE).build();
+                .status(CustomerStatus.ACTIVE).build();
     }
 
-    private Account account(Long id, Long customerId) {
+    private Account account(Long id, Customer customer) {
         return Account.builder()
-                .id(id)
-                .customer(customer(customerId))
+                .id(id).customer(customer)
+                .accountNumber("ACC001").type(AccountType.SAVINGS)
+                .balance(BigDecimal.valueOf(1000)).status(AccountStatus.ACTIVE)
                 .build();
     }
 
-    private Transaction transaction(Long id, Long accountId, TransactionType type, TransactionStatus status) {
+    private Transaction transaction(Long id, Account account, TransactionType type, TransactionStatus status) {
         return Transaction.builder()
-                .id(id)
-                .account(Account.builder().id(accountId).build())
-                .type(type)
-                .amount(java.math.BigDecimal.TEN)
-                .balanceAfter(java.math.BigDecimal.TEN)
+                .id(id).account(account).type(type)
+                .amount(BigDecimal.valueOf(100))
+                .balanceAfter(BigDecimal.valueOf(900))
                 .status(status)
                 .build();
     }
 
     @Test
-    void list_shouldReturnAllTransactions_whenAllFiltersAreNull() {
-        Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 20,
-                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+    void list_noFilters_returnsAllMapped() {
+        Customer c = customer(1L);
+        Account a = account(1L, c);
+        Transaction t1 = transaction(1L, a, TransactionType.DEPOSIT, TransactionStatus.COMPLETED);
+        Transaction t2 = transaction(2L, a, TransactionType.WITHDRAWAL, TransactionStatus.PENDING);
+        when(transactionRepository.findByFilters(null, null, null)).thenReturn(List.of(t1, t2));
 
-        Transaction t1 = transaction(1L, 1L, TransactionType.DEPOSIT, TransactionStatus.COMPLETED);
-        Transaction t2 = transaction(2L, 2L, TransactionType.WITHDRAWAL, TransactionStatus.PENDING);
+        List<TransactionResponse> res = transactionService.list(null, null, null);
 
-        Page<Transaction> page = new PageImpl<>(List.of(t1, t2), pageable, 2);
-        when(transactionRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(page);
-
-        Page<TransactionResponse> result = transactionService.list(null, null, null, pageable);
-
-        assertEquals(2, result.getContent().size());
-        verify(transactionRepository).findAll(any(Specification.class), eq(pageable));
+        assertThat(res).hasSize(2);
+        assertThat(res.get(0).id()).isEqualTo(1L);
+        assertThat(res.get(1).id()).isEqualTo(2L);
     }
 
     @Test
-    void list_shouldApplySingleFilter_status() {
-        Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 20);
-        TransactionStatus status = TransactionStatus.COMPLETED;
+    void list_withStatusFilter_returnsFiltered() {
+        Customer c = customer(1L);
+        Account a = account(1L, c);
+        Transaction t1 = transaction(1L, a, TransactionType.DEPOSIT, TransactionStatus.COMPLETED);
+        when(transactionRepository.findByFilters(TransactionStatus.COMPLETED, null, null)).thenReturn(List.of(t1));
 
-        Transaction t1 = transaction(1L, 1L, TransactionType.DEPOSIT, status);
-        Page<Transaction> page = new PageImpl<>(List.of(t1), pageable, 1);
-        when(transactionRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(page);
+        List<TransactionResponse> res = transactionService.list(TransactionStatus.COMPLETED, null, null);
 
-        transactionService.list(status, null, null, pageable);
-
-        ArgumentCaptor<Specification<Transaction>> specCaptor = ArgumentCaptor.forClass(Specification.class);
-        verify(transactionRepository).findAll(specCaptor.capture(), eq(pageable));
-
-        Specification<Transaction> expected = TransactionSpecifications.filter(status, null, null);
-        assertEquals(expected, specCaptor.getValue());
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).status()).isEqualTo(TransactionStatus.COMPLETED);
     }
 
     @Test
-    void list_shouldApplyAllFilters_statusTypeCustomerId() {
-        Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+    void list_withTypeFilter_returnsFiltered() {
+        Customer c = customer(1L);
+        Account a = account(1L, c);
+        Transaction t1 = transaction(1L, a, TransactionType.DEPOSIT, TransactionStatus.COMPLETED);
+        when(transactionRepository.findByFilters(null, TransactionType.DEPOSIT, null)).thenReturn(List.of(t1));
 
-        TransactionStatus status = TransactionStatus.COMPLETED;
-        TransactionType type = TransactionType.DEPOSIT;
-        Long customerId = 1L;
+        List<TransactionResponse> res = transactionService.list(null, TransactionType.DEPOSIT, null);
 
-        Transaction t1 = transaction(1L, 1L, type, status);
-        Page<Transaction> page = new PageImpl<>(List.of(t1), pageable, 1);
-        when(transactionRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(page);
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).type()).isEqualTo(TransactionType.DEPOSIT);
+    }
 
-        transactionService.list(status, type, customerId, pageable);
+    @Test
+    void list_withCustomerIdFilter_returnsFiltered() {
+        Customer c = customer(1L);
+        Account a = account(1L, c);
+        Transaction t1 = transaction(1L, a, TransactionType.DEPOSIT, TransactionStatus.COMPLETED);
+        when(transactionRepository.findByFilters(null, null, 1L)).thenReturn(List.of(t1));
 
-        ArgumentCaptor<Specification<Transaction>> specCaptor = ArgumentCaptor.forClass(Specification.class);
-        verify(transactionRepository).findAll(specCaptor.capture(), eq(pageable));
+        List<TransactionResponse> res = transactionService.list(null, null, 1L);
 
-        Specification<Transaction> expected = TransactionSpecifications.filter(status, type, customerId);
-        assertEquals(expected, specCaptor.getValue());
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).accountId()).isEqualTo(1L);
+    }
+
+    @Test
+    void list_withCombinedFilters_appliesAllAsAnd() {
+        Customer c = customer(1L);
+        Account a = account(1L, c);
+        Transaction t1 = transaction(1L, a, TransactionType.DEPOSIT, TransactionStatus.COMPLETED);
+        when(transactionRepository.findByFilters(TransactionStatus.COMPLETED, TransactionType.DEPOSIT, 1L))
+                .thenReturn(List.of(t1));
+
+        List<TransactionResponse> res = transactionService.list(TransactionStatus.COMPLETED, TransactionType.DEPOSIT, 1L);
+
+        assertThat(res).hasSize(1);
+        verify(transactionRepository).findByFilters(TransactionStatus.COMPLETED, TransactionType.DEPOSIT, 1L);
+    }
+
+    @Test
+    void list_noMatches_returnsEmptyList() {
+        when(transactionRepository.findByFilters(TransactionStatus.FAILED, null, null)).thenReturn(List.of());
+
+        List<TransactionResponse> res = transactionService.list(TransactionStatus.FAILED, null, null);
+
+        assertThat(res).isEmpty();
     }
 }
