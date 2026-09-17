@@ -1,47 +1,31 @@
 package com.techverito.banking.service;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.techverito.banking.config.RelationshipManagerPoolProperties;
+import com.techverito.banking.exception.NoAvailableRelationshipManagerException;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class RelationshipManagerAssignmentService {
 
-    private static final List<String> DEFAULT_MANAGERS = List.of("manager1", "manager2", "manager3");
+    private final RelationshipManagerPoolProperties poolProperties;
+    private int cursor = 0;
 
-    private static final AtomicInteger counter = new AtomicInteger(0);
-
-    private static volatile List<String> managers = DEFAULT_MANAGERS;
-
-    public RelationshipManagerAssignmentService(
-            @Value("${banking.relationship-managers:}") String relationshipManagers) {
-        managers = parseManagers(relationshipManagers);
+    public RelationshipManagerAssignmentService(RelationshipManagerPoolProperties poolProperties) {
+        this.poolProperties = poolProperties;
     }
 
-    private static List<String> parseManagers(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return DEFAULT_MANAGERS;
+    public synchronized String nextManager() {
+        List<String> names = poolProperties.getNames();
+        if (names == null || names.isEmpty()) {
+            throw new NoAvailableRelationshipManagerException("No available relationship managers");
         }
-        List<String> parsed = new ArrayList<>();
-        for (String name : raw.split(",")) {
-            String trimmed = name.trim();
-            if (!trimmed.isEmpty()) {
-                parsed.add(trimmed);
-            }
-        }
-        return parsed.isEmpty() ? DEFAULT_MANAGERS : Collections.unmodifiableList(parsed);
-    }
 
-    public static String assignNext() {
-        List<String> pool = managers;
-        if (pool == null || pool.isEmpty()) {
-            throw new IllegalStateException("No relationship managers configured for assignment");
+        if (cursor >= names.size()) {
+            cursor = 0;
         }
-        int index = Math.floorMod(counter.getAndIncrement(), pool.size());
-        return pool.get(index);
+
+        return names.get(cursor++);
     }
 }

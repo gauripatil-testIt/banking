@@ -15,9 +15,11 @@ import java.util.List;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final RelationshipManagerAssignmentService relationshipManagerAssignmentService;
 
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(CustomerRepository customerRepository, RelationshipManagerAssignmentService relationshipManagerAssignmentService) {
         this.customerRepository = customerRepository;
+        this.relationshipManagerAssignmentService = relationshipManagerAssignmentService;
     }
 
     public CustomerResponse create(CustomerRequest req) {
@@ -30,7 +32,7 @@ public class CustomerService {
                 .idNumber(req.idNumber())
                 .idType(req.idType())
                 .dateOfBirth(req.dateOfBirth())
-                .relationshipManagerName(RelationshipManagerAssignmentService.assignNext())
+                .relationshipManagerName(relationshipManagerAssignmentService.nextManager())
                 .build();
         return CustomerResponse.from(customerRepository.save(customer));
     }

@@ -17,12 +17,25 @@ public record CustomerResponse(
         LocalDate dateOfBirth,
         String relationshipManagerName
 ) {
+    public CustomerResponse(
+            Long id,
+            String firstName,
+            String lastName,
+            String email,
+            String phone,
+            CustomerStatus status,
+            String idNumber,
+            String idType,
+            LocalDate dateOfBirth
+    ) {
+        this(id, firstName, lastName, email, phone, status, idNumber, idType, dateOfBirth, null);
+    }
+
     public static CustomerResponse from(Customer c) {
         return new CustomerResponse(
                 c.getId(), c.getFirstName(), c.getLastName(),
                 c.getEmail(), c.getPhone(), c.getStatus(),
-                c.getIdNumber(), c.getIdType(), c.getDateOfBirth(),
-                c.getRelationshipManagerName()
+                c.getIdNumber(), c.getIdType(), c.getDateOfBirth(), c.getRelationshipManagerName()
         );
     }
 }
