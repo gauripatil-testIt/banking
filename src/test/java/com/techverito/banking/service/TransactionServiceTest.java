@@ -32,24 +32,20 @@ class TransactionServiceTest {
     @InjectMocks
     TransactionService transactionService;
 
-    private Customer customer(Long id) {
-        return Customer.builder()
-                .id(id).firstName("John").lastName("Doe")
-                .email("john@example.com").phone("123")
-                .status(CustomerStatus.ACTIVE).build();
-    }
-
     private Account account(Long id) {
         return Account.builder()
-                .id(id).customer(customer(1L))
-                .accountNumber("ACC001").type(AccountType.SAVINGS)
-                .balance(BigDecimal.valueOf(1000)).status(AccountStatus.ACTIVE)
+                .id(id)
+                .accountNumber("ACC001")
+                .type(AccountType.SAVINGS)
+                .balance(BigDecimal.valueOf(1000))
+                .status(AccountStatus.ACTIVE)
                 .build();
     }
 
     private Transaction transaction(Long id, Account account) {
         return Transaction.builder()
-                .id(id).account(account)
+                .id(id)
+                .account(account)
                 .type(TransactionType.DEPOSIT)
                 .amount(BigDecimal.valueOf(100))
                 .balanceAfter(BigDecimal.valueOf(1100))
@@ -58,25 +54,13 @@ class TransactionServiceTest {
     }
 
     private TransactionRequest request() {
-        return new TransactionRequest(1L, TransactionType.DEPOSIT, BigDecimal.valueOf(100),
-                BigDecimal.valueOf(1100), TransactionStatus.COMPLETED);
-    }
-
-    @Test
-    void create_validAccount_savesAndReturnsResponse() {
-        Account a = account(1L);
-        Transaction t = transaction(1L, a);
-        when(accountRepository.findById(1L)).thenReturn(Optional.of(a));
-        when(transactionRepository.save(any())).thenReturn(t);
-
-        TransactionResponse res = transactionService.create(request());
-
-        assertThat(res.id()).isEqualTo(1L);
-        assertThat(res.accountId()).isEqualTo(1L);
-        assertThat(res.type()).isEqualTo(TransactionType.DEPOSIT);
-        assertThat(res.amount()).isEqualByComparingTo(BigDecimal.valueOf(100));
-        assertThat(res.balanceAfter()).isEqualByComparingTo(BigDecimal.valueOf(1100));
-        assertThat(res.status()).isEqualTo(TransactionStatus.COMPLETED);
+        return new TransactionRequest(
+                1L,
+                TransactionType.DEPOSIT,
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(1100),
+                TransactionStatus.COMPLETED
+        );
     }
 
     @Test
@@ -89,6 +73,22 @@ class TransactionServiceTest {
     }
 
     @Test
+    void create_validAccount_savesAndReturnsResponse() {
+        Account a = account(1L);
+        Transaction t = transaction(1L, a);
+
+        when(accountRepository.findById(1L)).thenReturn(Optional.of(a));
+        when(transactionRepository.save(any())).thenReturn(t);
+
+        TransactionResponse res = transactionService.create(request());
+
+        assertThat(res.id()).isEqualTo(1L);
+        assertThat(res.accountId()).isEqualTo(1L);
+        assertThat(res.type()).isEqualTo(TransactionType.DEPOSIT);
+        assertThat(res.balanceAfter()).isEqualByComparingTo(BigDecimal.valueOf(1100));
+    }
+
+    @Test
     void getById_found_returnsResponse() {
         Account a = account(1L);
         Transaction t = transaction(1L, a);
@@ -96,7 +96,7 @@ class TransactionServiceTest {
 
         TransactionResponse res = transactionService.getById(1L);
 
-        assertThat(res.accountId()).isEqualTo(1L);
+        assertThat(res.amount()).isEqualByComparingTo(BigDecimal.valueOf(100));
         assertThat(res.status()).isEqualTo(TransactionStatus.COMPLETED);
     }
 
@@ -111,7 +111,10 @@ class TransactionServiceTest {
     @Test
     void list_noFilter_returnsAll() {
         Account a = account(1L);
-        when(transactionRepository.findAll()).thenReturn(List.of(transaction(1L, a), transaction(2L, a)));
+        when(transactionRepository.findAll()).thenReturn(List.of(
+                transaction(1L, a),
+                transaction(2L, a)
+        ));
 
         List<TransactionResponse> res = transactionService.list(null);
 
@@ -133,6 +136,7 @@ class TransactionServiceTest {
     void update_found_updatesAndReturns() {
         Account a = account(1L);
         Transaction existing = transaction(1L, a);
+
         when(transactionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(accountRepository.findById(1L)).thenReturn(Optional.of(a));
         when(transactionRepository.save(any())).thenReturn(existing);

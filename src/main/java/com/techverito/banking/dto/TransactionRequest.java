@@ -11,6 +11,6 @@ public record TransactionRequest(
         @NotNull Long accountId,
         @NotNull TransactionType type,
         @NotNull @DecimalMin("0.0") BigDecimal amount,
-        @NotNull BigDecimal balanceAfter,
+        @NotNull @DecimalMin("0.0") BigDecimal balanceAfter,
         @NotNull TransactionStatus status
 ) {}
