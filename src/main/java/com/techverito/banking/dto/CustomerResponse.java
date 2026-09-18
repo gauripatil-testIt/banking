@@ -2,6 +2,9 @@ package com.techverito.banking.dto;
 
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerStatus;
+import com.techverito.banking.entity.IdType;
+
+import java.time.LocalDate;
 
 public record CustomerResponse(
         Long id,
@@ -9,12 +12,16 @@ public record CustomerResponse(
         String lastName,
         String email,
         String phone,
-        CustomerStatus status
+        CustomerStatus status,
+        String idNumber,
+        IdType idType,
+        LocalDate dateOfBirth
 ) {
     public static CustomerResponse from(Customer c) {
         return new CustomerResponse(
                 c.getId(), c.getFirstName(), c.getLastName(),
-                c.getEmail(), c.getPhone(), c.getStatus()
+                c.getEmail(), c.getPhone(), c.getStatus(),
+                c.getIdNumber(), c.getIdType(), c.getDateOfBirth()
         );
     }
 }

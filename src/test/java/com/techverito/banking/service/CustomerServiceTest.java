@@ -4,6 +4,7 @@ import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerStatus;
+import com.techverito.banking.entity.IdType;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,14 +31,17 @@ class CustomerServiceTest {
     CustomerService customerService;
 
     private CustomerRequest request() {
-        return new CustomerRequest("John", "Doe", "john@example.com", "1234567890", CustomerStatus.ACTIVE);
+        return new CustomerRequest("John", "Doe", "john@example.com", "1234567890", CustomerStatus.ACTIVE,
+                "ID-1000", IdType.PASSPORT, LocalDate.of(1990, 1, 1));
     }
 
     private Customer customer(Long id) {
         return Customer.builder()
                 .id(id).firstName("John").lastName("Doe")
                 .email("john@example.com").phone("1234567890")
-                .status(CustomerStatus.ACTIVE).build();
+                .status(CustomerStatus.ACTIVE)
+                .idNumber("ID-1000").idType(IdType.PASSPORT).dateOfBirth(LocalDate.of(1990, 1, 1))
+                .build();
     }
 
     @Test
@@ -86,7 +91,8 @@ class CustomerServiceTest {
         when(customerRepository.save(any())).thenReturn(existing);
 
         CustomerResponse res = customerService.update(1L,
-                new CustomerRequest("Jane", "Smith", "jane@example.com", "999", CustomerStatus.INACTIVE));
+                new CustomerRequest("Jane", "Smith", "jane@example.com", "999", CustomerStatus.INACTIVE,
+                        "ID-2000", IdType.NATIONAL_ID, LocalDate.of(1985, 5, 5)));
 
         assertThat(res).isNotNull();
         verify(customerRepository).save(existing);

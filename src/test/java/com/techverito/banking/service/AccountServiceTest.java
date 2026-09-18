@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,7 +37,9 @@ class AccountServiceTest {
         return Customer.builder()
                 .id(id).firstName("John").lastName("Doe")
                 .email("john@example.com").phone("123")
-                .status(CustomerStatus.ACTIVE).build();
+                .status(CustomerStatus.ACTIVE)
+                .idNumber("ID-1000").idType(IdType.PASSPORT).dateOfBirth(LocalDate.of(1990, 1, 1))
+                .build();
     }
 
     private Account account(Long id, Customer customer) {
