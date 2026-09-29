@@ -29,6 +29,8 @@ public class Customer {
     @Column(nullable = false)
     private CustomerStatus status;
 
+    private String passwordHash;
+
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Account> accounts = new ArrayList<>();
 
@@ -41,6 +43,7 @@ public class Customer {
         this.email = b.email;
         this.phone = b.phone;
         this.status = b.status;
+        this.passwordHash = b.passwordHash;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -52,6 +55,7 @@ public class Customer {
         private String email;
         private String phone;
         private CustomerStatus status;
+        private String passwordHash;
 
         public Builder id(Long id) { this.id = id; return this; }
         public Builder firstName(String v) { this.firstName = v; return this; }
@@ -59,6 +63,7 @@ public class Customer {
         public Builder email(String v) { this.email = v; return this; }
         public Builder phone(String v) { this.phone = v; return this; }
         public Builder status(CustomerStatus v) { this.status = v; return this; }
+        public Builder passwordHash(String v) { this.passwordHash = v; return this; }
         public Customer build() { return new Customer(this); }
     }
 
@@ -68,6 +73,7 @@ public class Customer {
     public String getEmail() { return email; }
     public String getPhone() { return phone; }
     public CustomerStatus getStatus() { return status; }
+    public String getPasswordHash() { return passwordHash; }
     public List<Account> getAccounts() { return accounts; }
 
     public void setFirstName(String v) { this.firstName = v; }
@@ -75,6 +81,7 @@ public class Customer {
     public void setEmail(String v) { this.email = v; }
     public void setPhone(String v) { this.phone = v; }
     public void setStatus(CustomerStatus v) { this.status = v; }
+    public void setPasswordHash(String v) { this.passwordHash = v; }
 
     @Override
     public boolean equals(Object o) {
