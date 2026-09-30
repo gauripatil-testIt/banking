@@ -4,6 +4,7 @@ import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerStatus;
+import com.techverito.banking.entity.RelationshipManager;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,9 @@ class CustomerServiceTest {
     @Mock
     CustomerRepository customerRepository;
 
+    @Mock
+    RelationshipManagerService relationshipManagerService;
+
     @InjectMocks
     CustomerService customerService;
 
@@ -42,6 +46,8 @@ class CustomerServiceTest {
     @Test
     void create_savesAndReturnsResponse() {
         Customer saved = customer(1L);
+        when(relationshipManagerService.assignNextManager()).thenReturn(
+                RelationshipManager.builder().id(1L).name("Alice").email("alice@example.com").active(true).build());
         when(customerRepository.save(any())).thenReturn(saved);
 
         CustomerResponse res = customerService.create(request());

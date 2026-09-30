@@ -32,6 +32,10 @@ public class Customer {
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Account> accounts = new ArrayList<>();
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "relationship_manager_id")
+    private RelationshipManager relationshipManager;
+
     public Customer() {}
 
     private Customer(Builder b) {
@@ -41,6 +45,7 @@ public class Customer {
         this.email = b.email;
         this.phone = b.phone;
         this.status = b.status;
+        this.relationshipManager = b.relationshipManager;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -52,6 +57,7 @@ public class Customer {
         private String email;
         private String phone;
         private CustomerStatus status;
+        private RelationshipManager relationshipManager;
 
         public Builder id(Long id) { this.id = id; return this; }
         public Builder firstName(String v) { this.firstName = v; return this; }
@@ -59,6 +65,7 @@ public class Customer {
         public Builder email(String v) { this.email = v; return this; }
         public Builder phone(String v) { this.phone = v; return this; }
         public Builder status(CustomerStatus v) { this.status = v; return this; }
+        public Builder relationshipManager(RelationshipManager v) { this.relationshipManager = v; return this; }
         public Customer build() { return new Customer(this); }
     }
 
@@ -69,12 +76,14 @@ public class Customer {
     public String getPhone() { return phone; }
     public CustomerStatus getStatus() { return status; }
     public List<Account> getAccounts() { return accounts; }
+    public RelationshipManager getRelationshipManager() { return relationshipManager; }
 
     public void setFirstName(String v) { this.firstName = v; }
     public void setLastName(String v) { this.lastName = v; }
     public void setEmail(String v) { this.email = v; }
     public void setPhone(String v) { this.phone = v; }
     public void setStatus(CustomerStatus v) { this.status = v; }
+    public void setRelationshipManager(RelationshipManager v) { this.relationshipManager = v; }
 
     @Override
     public boolean equals(Object o) {

@@ -3,6 +3,7 @@ package com.techverito.banking.service;
 import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
+import com.techverito.banking.entity.RelationshipManager;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
@@ -15,18 +16,22 @@ import java.util.List;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final RelationshipManagerService relationshipManagerService;
 
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(CustomerRepository customerRepository, RelationshipManagerService relationshipManagerService) {
         this.customerRepository = customerRepository;
+        this.relationshipManagerService = relationshipManagerService;
     }
 
     public CustomerResponse create(CustomerRequest req) {
+        RelationshipManager relationshipManager = relationshipManagerService.assignNextManager();
         Customer customer = Customer.builder()
                 .firstName(req.firstName())
                 .lastName(req.lastName())
                 .email(req.email())
                 .phone(req.phone())
                 .status(req.status())
+                .relationshipManager(relationshipManager)
                 .build();
         return CustomerResponse.from(customerRepository.save(customer));
     }
