@@ -29,4 +29,19 @@ public class GlobalExceptionHandler {
         pd.setProperty("errors", errors);
         return pd;
     }
+
+    @ExceptionHandler(InsufficientFundsException.class)
+    public ProblemDetail handleInsufficientFunds(InsufficientFundsException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidTransactionStateException.class)
+    public ProblemDetail handleInvalidTransactionState(InvalidTransactionStateException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidTransactionTypeException.class)
+    public ProblemDetail handleInvalidTransactionType(InvalidTransactionTypeException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
 }
