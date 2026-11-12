@@ -2,6 +2,7 @@ package com.techverito.banking.entity;
 
 import jakarta.persistence.*;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -29,6 +30,9 @@ public class Customer {
     @Column(nullable = false)
     private CustomerStatus status;
 
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
+
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Account> accounts = new ArrayList<>();
 
@@ -41,6 +45,7 @@ public class Customer {
         this.email = b.email;
         this.phone = b.phone;
         this.status = b.status;
+        this.createdAt = b.createdAt;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -52,6 +57,7 @@ public class Customer {
         private String email;
         private String phone;
         private CustomerStatus status;
+        private Instant createdAt;
 
         public Builder id(Long id) { this.id = id; return this; }
         public Builder firstName(String v) { this.firstName = v; return this; }
@@ -59,6 +65,7 @@ public class Customer {
         public Builder email(String v) { this.email = v; return this; }
         public Builder phone(String v) { this.phone = v; return this; }
         public Builder status(CustomerStatus v) { this.status = v; return this; }
+        public Builder createdAt(Instant v) { this.createdAt = v; return this; }
         public Customer build() { return new Customer(this); }
     }
 
@@ -68,6 +75,7 @@ public class Customer {
     public String getEmail() { return email; }
     public String getPhone() { return phone; }
     public CustomerStatus getStatus() { return status; }
+    public Instant getCreatedAt() { return createdAt; }
     public List<Account> getAccounts() { return accounts; }
 
     public void setFirstName(String v) { this.firstName = v; }
@@ -75,6 +83,7 @@ public class Customer {
     public void setEmail(String v) { this.email = v; }
     public void setPhone(String v) { this.phone = v; }
     public void setStatus(CustomerStatus v) { this.status = v; }
+    public void setCreatedAt(Instant v) { this.createdAt = v; }
 
     @Override
     public boolean equals(Object o) {
