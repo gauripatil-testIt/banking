@@ -1,8 +1,10 @@
 package com.techverito.banking.storage;
 
 import com.techverito.banking.config.DocumentProperties;
+import com.techverito.banking.exception.DocumentContentUnavailableException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.core.io.Resource;
 import org.springframework.util.unit.DataSize;
 
 import java.nio.charset.StandardCharsets;
@@ -12,6 +14,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LocalFileSystemDocumentStorageTest {
 
@@ -89,5 +92,57 @@ class LocalFileSystemDocumentStorageTest {
         LocalFileSystemDocumentStorage storage = storage(storageDir);
 
         assertThatCode(() -> storage.delete("does-not-exist.pdf")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void load_afterStore_returnsContentIdenticalToUploaded() throws Exception {
+        LocalFileSystemDocumentStorage storage = storage(storageDir);
+        byte[] uploaded = new byte[(int) DataSize.ofMegabytes(10).toBytes()];
+        for (int i = 0; i < uploaded.length; i++) {
+            uploaded[i] = (byte) (i % 251);
+        }
+
+        String storedFileName = storage.store(uploaded, "big.pdf");
+
+        Resource resource = storage.load(storedFileName);
+        byte[] loaded = resource.getInputStream().readAllBytes();
+
+        assertThat(loaded).isEqualTo(uploaded);
+        assertThat(loaded).hasSize(10 * 1024 * 1024);
+    }
+
+    @Test
+    void load_nameWithSpacesBracketsAndNonEnglishCharacters_returnsIdenticalContent() throws Exception {
+        LocalFileSystemDocumentStorage storage = storage(storageDir);
+        byte[] uploaded = content("data with spaces, brackets [ü] and non-English characters");
+
+        String storedFileName = storage.store(uploaded, "pán kyc (final) [übersicht].png");
+
+        Resource resource = storage.load(storedFileName);
+
+        assertThat(resource.getInputStream().readAllBytes()).isEqualTo(uploaded);
+    }
+
+    @Test
+    void load_missingFile_throwsDocumentContentUnavailableException() {
+        LocalFileSystemDocumentStorage storage = storage(storageDir);
+
+        assertThatThrownBy(() -> storage.load("does-not-exist.pdf"))
+                .isInstanceOfSatisfying(DocumentContentUnavailableException.class, ex -> {
+                    assertThat(ex.getMessage()).isEqualTo(
+                            "The file for this document is no longer available. Please upload the document again.");
+                    assertThat(ex.getStoredFileName()).isEqualTo("does-not-exist.pdf");
+                });
+    }
+
+    @Test
+    void load_afterDelete_throwsDocumentContentUnavailableException() {
+        LocalFileSystemDocumentStorage storage = storage(storageDir);
+        String storedFileName = storage.store(content("data"), "proof.pdf");
+
+        storage.delete(storedFileName);
+
+        assertThatThrownBy(() -> storage.load(storedFileName))
+                .isInstanceOf(DocumentContentUnavailableException.class);
     }
 }

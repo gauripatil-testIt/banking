@@ -1,7 +1,10 @@
 package com.techverito.banking.storage;
 
 import com.techverito.banking.config.DocumentProperties;
+import com.techverito.banking.exception.DocumentContentUnavailableException;
 import jakarta.annotation.PostConstruct;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -32,6 +35,19 @@ public class LocalFileSystemDocumentStorage implements DocumentStorage {
             return storedFileName;
         } catch (IOException ex) {
             throw new DocumentStorageException("Could not store file: " + originalFileName, ex);
+        }
+    }
+
+    @Override
+    public Resource load(String storedFileName) {
+        Path path = resolve(storedFileName);
+        if (!Files.isRegularFile(path)) {
+            throw new DocumentContentUnavailableException(storedFileName);
+        }
+        try {
+            return new InputStreamResource(Files.newInputStream(path));
+        } catch (IOException ex) {
+            throw new DocumentContentUnavailableException(storedFileName, ex);
         }
     }
 
