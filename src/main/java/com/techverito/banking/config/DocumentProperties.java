@@ -11,5 +11,6 @@ import java.util.Set;
 public record DocumentProperties(
         @DefaultValue("./uploads/documents") Path storageDir,
         @DefaultValue({"pdf", "jpg", "png"}) Set<String> allowedExtensions,
-        @DefaultValue("10MB") DataSize maxFileSize
+        @DefaultValue("10MB") DataSize maxFileSize,
+        @DefaultValue("S3") StorageType storage
 ) {}

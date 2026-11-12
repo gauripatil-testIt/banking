@@ -1,6 +1,7 @@
 package com.techverito.banking.service;
 
 import com.techverito.banking.config.DocumentProperties;
+import com.techverito.banking.config.StorageType;
 import com.techverito.banking.dto.DocumentResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerDocument;
@@ -10,11 +11,14 @@ import com.techverito.banking.exception.DocumentValidationException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerDocumentRepository;
 import com.techverito.banking.repository.CustomerRepository;
+import com.techverito.banking.repository.DocumentDownloadRepository;
 import com.techverito.banking.storage.DocumentStorage;
+import com.techverito.banking.storage.DocumentStorageException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -34,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +53,9 @@ class DocumentServiceTest {
     @Mock
     DocumentStorage storage;
 
+    @Mock
+    DocumentDownloadRepository documentDownloadRepository;
+
     private DocumentService documentService;
 
     @BeforeEach
@@ -55,8 +63,10 @@ class DocumentServiceTest {
         DocumentProperties properties = new DocumentProperties(
                 Path.of("./target/test-documents"),
                 Set.of("pdf", "jpg", "png"),
-                DataSize.ofMegabytes(10));
-        documentService = new DocumentService(documentRepository, customerRepository, storage, properties);
+                DataSize.ofMegabytes(10),
+                StorageType.LOCAL);
+        documentService = new DocumentService(documentRepository, customerRepository, storage, properties,
+                documentDownloadRepository);
     }
 
     private Customer customer(Long id) {
@@ -100,7 +110,7 @@ class DocumentServiceTest {
     @Test
     void upload_validPdf_returnsDocumentWithAllFields() {
         when(customerRepository.findById(1L)).thenReturn(Optional.of(customer(1L)));
-        when(storage.store(any(), any())).thenReturn("stored-1.pdf");
+        when(storage.store(any(), any(), eq(1L))).thenReturn("stored-1.pdf");
         when(documentRepository.save(any(CustomerDocument.class)))
                 .thenAnswer(invocation -> withId(invocation.getArgument(0), 7L));
 
@@ -116,6 +126,8 @@ class DocumentServiceTest {
         assertThat(response.uploadedAt()).isNotNull();
         assertThat(response.uploadedBy()).isEqualTo("ops.user");
         assertThat(response.note()).isEqualTo("verified copy");
+
+        verify(storage).store(any(), any(), eq(1L));
 
         ArgumentCaptor<CustomerDocument> captor = ArgumentCaptor.forClass(CustomerDocument.class);
         verify(documentRepository).save(captor.capture());
@@ -140,7 +152,7 @@ class DocumentServiceTest {
                 .hasMessageContaining("JPG")
                 .hasMessageContaining("PNG");
 
-        verify(storage, never()).store(any(), any());
+        verify(storage, never()).store(any(), any(), any());
         verify(documentRepository, never()).save(any(CustomerDocument.class));
     }
 
@@ -154,14 +166,14 @@ class DocumentServiceTest {
                 .isInstanceOf(DocumentValidationException.class)
                 .hasMessageContaining("10 MB");
 
-        verify(storage, never()).store(any(), any());
+        verify(storage, never()).store(any(), any(), any());
         verify(documentRepository, never()).save(any(CustomerDocument.class));
     }
 
     @Test
     void upload_fileExactlyAtLimit_isAccepted() {
         when(customerRepository.findById(1L)).thenReturn(Optional.of(customer(1L)));
-        when(storage.store(any(), any())).thenReturn("stored-limit.pdf");
+        when(storage.store(any(), any(), eq(1L))).thenReturn("stored-limit.pdf");
         when(documentRepository.save(any(CustomerDocument.class)))
                 .thenAnswer(invocation -> withId(invocation.getArgument(0), 11L));
         byte[] atLimit = new byte[(int) DataSize.ofMegabytes(10).toBytes()];
@@ -182,7 +194,7 @@ class DocumentServiceTest {
                 .isInstanceOf(DocumentValidationException.class)
                 .hasMessageContaining("empty");
 
-        verify(storage, never()).store(any(), any());
+        verify(storage, never()).store(any(), any(), any());
         verify(documentRepository, never()).save(any(CustomerDocument.class));
     }
 
@@ -195,7 +207,7 @@ class DocumentServiceTest {
                 .isInstanceOf(DocumentValidationException.class)
                 .hasMessageContaining("uploading");
 
-        verify(storage, never()).store(any(), any());
+        verify(storage, never()).store(any(), any(), any());
         verify(documentRepository, never()).save(any(CustomerDocument.class));
     }
 
@@ -209,14 +221,14 @@ class DocumentServiceTest {
                 .hasMessageContaining("Customer")
                 .hasMessageContaining("99");
 
-        verify(storage, never()).store(any(), any());
+        verify(storage, never()).store(any(), any(), any());
         verify(documentRepository, never()).save(any(CustomerDocument.class));
     }
 
     @Test
     void upload_duplicateOriginalFileName_keepsBothDocuments() {
         when(customerRepository.findById(1L)).thenReturn(Optional.of(customer(1L)));
-        when(storage.store(any(), any())).thenReturn("stored-first.pdf", "stored-second.pdf");
+        when(storage.store(any(), any(), eq(1L))).thenReturn("stored-first.pdf", "stored-second.pdf");
         AtomicLong nextId = new AtomicLong(1L);
         when(documentRepository.save(any(CustomerDocument.class)))
                 .thenAnswer(invocation -> withId(invocation.getArgument(0), nextId.getAndIncrement()));
@@ -239,7 +251,7 @@ class DocumentServiceTest {
     @Test
     void upload_saveFails_deletesStoredFileAndPropagates() {
         when(customerRepository.findById(1L)).thenReturn(Optional.of(customer(1L)));
-        when(storage.store(any(), any())).thenReturn("stored-rollback.pdf");
+        when(storage.store(any(), any(), eq(1L))).thenReturn("stored-rollback.pdf");
         when(documentRepository.save(any(CustomerDocument.class)))
                 .thenThrow(new DataIntegrityViolationException("insert failed"));
 
@@ -275,5 +287,54 @@ class DocumentServiceTest {
                 .hasMessageContaining("Customer");
 
         verify(documentRepository, never()).findByCustomer_IdOrderByUploadedAtDescIdDesc(anyLong());
+    }
+
+    @Test
+    void delete_removesStoredObjectRecordAndDownloadHistory() {
+        CustomerDocument existing = document(7L, Instant.parse("2024-05-02T10:15:30Z"), "customers/1/stored-7.pdf");
+        when(documentRepository.findById(7L)).thenReturn(Optional.of(existing));
+
+        documentService.delete(1L, 7L);
+
+        verify(storage).delete("customers/1/stored-7.pdf");
+        InOrder inOrder = inOrder(storage, documentDownloadRepository, documentRepository);
+        inOrder.verify(storage).delete("customers/1/stored-7.pdf");
+        inOrder.verify(documentDownloadRepository).deleteByDocument_Id(7L);
+        inOrder.verify(documentRepository).delete(existing);
+    }
+
+    @Test
+    void delete_unknownOrForeignDocument_throwsNotFoundAndDeletesNothing() {
+        CustomerDocument foreign = document(8L, Instant.parse("2024-05-02T10:15:30Z"), "customers/2/stored-8.pdf");
+        foreign.setCustomer(customer(2L));
+        when(documentRepository.findById(99L)).thenReturn(Optional.empty());
+        when(documentRepository.findById(8L)).thenReturn(Optional.of(foreign));
+
+        assertThatThrownBy(() -> documentService.delete(1L, 99L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Document not found with id: 99");
+
+        assertThatThrownBy(() -> documentService.delete(1L, 8L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Document not found with id: 8");
+
+        verify(storage, never()).delete(any());
+        verify(documentDownloadRepository, never()).deleteByDocument_Id(anyLong());
+        verify(documentRepository, never()).delete(any(CustomerDocument.class));
+    }
+
+    @Test
+    void delete_storageFailure_propagatesAndKeepsRecord() {
+        CustomerDocument existing = document(7L, Instant.parse("2024-05-02T10:15:30Z"), "customers/1/stored-7.pdf");
+        when(documentRepository.findById(7L)).thenReturn(Optional.of(existing));
+        doThrow(new DocumentStorageException("The document could not be deleted. Please try again."))
+                .when(storage).delete("customers/1/stored-7.pdf");
+
+        assertThatThrownBy(() -> documentService.delete(1L, 7L))
+                .isInstanceOf(DocumentStorageException.class)
+                .hasMessageContaining("could not be deleted");
+
+        verify(documentDownloadRepository, never()).deleteByDocument_Id(anyLong());
+        verify(documentRepository, never()).delete(any(CustomerDocument.class));
     }
 }

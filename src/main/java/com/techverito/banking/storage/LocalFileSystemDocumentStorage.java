@@ -3,6 +3,7 @@ package com.techverito.banking.storage;
 import com.techverito.banking.config.DocumentProperties;
 import com.techverito.banking.exception.DocumentContentUnavailableException;
 import jakarta.annotation.PostConstruct;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import java.nio.file.Path;
 import java.util.UUID;
 
 @Component
+@ConditionalOnProperty(prefix = "banking.documents", name = "storage", havingValue = "local")
 public class LocalFileSystemDocumentStorage implements DocumentStorage {
 
     private final Path storageDir;
@@ -27,7 +29,7 @@ public class LocalFileSystemDocumentStorage implements DocumentStorage {
     }
 
     @Override
-    public String store(byte[] content, String originalFileName) {
+    public String store(byte[] content, String originalFileName, Long customerId) {
         String storedFileName = generateStoredFileName(originalFileName);
         try {
             createStorageDir();

@@ -42,6 +42,26 @@ class DocumentPropertiesTest {
                 });
     }
 
+    @Test
+    void defaults_storageIsS3WhenPropertyAbsent() {
+        contextRunner.run(context -> {
+            DocumentProperties properties = context.getBean(DocumentProperties.class);
+
+            assertThat(properties.storage()).isEqualTo(StorageType.S3);
+        });
+    }
+
+    @Test
+    void overrides_bindLocalStorageFromPropertySource() {
+        contextRunner
+                .withPropertyValues("banking.documents.storage=local")
+                .run(context -> {
+                    DocumentProperties properties = context.getBean(DocumentProperties.class);
+
+                    assertThat(properties.storage()).isEqualTo(StorageType.LOCAL);
+                });
+    }
+
     @Configuration(proxyBeanMethods = false)
     @EnableConfigurationProperties(DocumentProperties.class)
     static class PropertiesConfig {
