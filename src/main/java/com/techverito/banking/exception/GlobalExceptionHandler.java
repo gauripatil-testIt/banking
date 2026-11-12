@@ -1,6 +1,8 @@
 package com.techverito.banking.exception;
 
 import com.techverito.banking.storage.DocumentStorageException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -18,6 +20,8 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ProblemDetail handleNotFound(ResourceNotFoundException ex) {
@@ -64,6 +68,13 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleStorageFailure(DocumentStorageException ex) {
         String detail = (ex.getMessage() != null) ? ex.getMessage() : "The document could not be stored.";
         return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, detail);
+    }
+
+    @ExceptionHandler(DocumentContentUnavailableException.class)
+    public ProblemDetail handleContentUnavailable(DocumentContentUnavailableException ex) {
+        log.warn("Stored document file is missing or unreadable, re-upload required: {}",
+                ex.getStoredFileName(), ex);
+        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     @ExceptionHandler(DataAccessException.class)

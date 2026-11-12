@@ -1,10 +1,15 @@
 package com.techverito.banking.exception;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techverito.banking.entity.DocumentType;
 import com.techverito.banking.storage.DocumentStorageException;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -98,6 +103,39 @@ class GlobalExceptionHandlerTest {
         assertThat(pd.getStatus()).isEqualTo(500);
         assertThat(pd.getDetail()).contains("Could not store file");
         assertProblemDetailShape(pd);
+    }
+
+    @Test
+    void contentUnavailable_returns404WithReuploadMessage() throws Exception {
+        ProblemDetail pd = handler.handleContentUnavailable(
+                new DocumentContentUnavailableException("stored-missing.pdf"));
+
+        assertThat(pd.getStatus()).isEqualTo(404);
+        assertThat(pd.getDetail()).isEqualTo(
+                "The file for this document is no longer available. Please upload the document again.");
+        JsonNode node = assertProblemDetailShape(pd);
+        assertThat(node.get("status").asInt()).isEqualTo(404);
+        assertThat(node.get("detail").asText()).isEqualTo(
+                "The file for this document is no longer available. Please upload the document again.");
+    }
+
+    @Test
+    void contentUnavailable_logsWarningContainingStoredFileName() {
+        Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            handler.handleContentUnavailable(new DocumentContentUnavailableException("stored-missing.pdf"));
+
+            assertThat(appender.list).hasSize(1);
+            ILoggingEvent event = appender.list.get(0);
+            assertThat(event.getLevel()).isEqualTo(Level.WARN);
+            assertThat(event.getFormattedMessage()).contains("stored-missing.pdf");
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     @Test
