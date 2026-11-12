@@ -45,6 +45,12 @@ public class DocumentController {
         return documentService.listByCustomer(customerId);
     }
 
+    @DeleteMapping("/{documentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long customerId, @PathVariable Long documentId) {
+        documentService.delete(customerId, documentId);
+    }
+
     @GetMapping("/{documentId}")
     public ResponseEntity<Resource> download(@PathVariable Long customerId,
                                              @PathVariable Long documentId,
