@@ -5,3 +5,9 @@ target/
 .idea/
 *.iml
 .DS_Store
+
+# IDE
+.project
+.classpath
+.settings/
+bin/
