@@ -11,3 +11,6 @@ target/
 .classpath
 .settings/
 bin/
+
+# Uploaded customer documents
+uploads/
