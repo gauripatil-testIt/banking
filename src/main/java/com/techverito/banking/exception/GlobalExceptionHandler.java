@@ -45,6 +45,11 @@ public class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(ExportValidationException.class)
+    public ProblemDetail handleExportValidation(ExportValidationException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ProblemDetail handleMaxUploadSize(MaxUploadSizeExceededException ex) {
         String detail = (ex.getMaxUploadSize() > 0)
