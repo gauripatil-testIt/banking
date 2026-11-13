@@ -5,6 +5,7 @@ import com.techverito.banking.dto.AccountRequest;
 import com.techverito.banking.dto.AccountResponse;
 import com.techverito.banking.entity.AccountStatus;
 import com.techverito.banking.entity.AccountType;
+import com.techverito.banking.event.EventRequestContext;
 import com.techverito.banking.exception.GlobalExceptionHandler;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.service.AccountService;
@@ -32,6 +33,9 @@ class AccountControllerTest {
 
     @MockBean
     AccountService accountService;
+
+    @MockBean
+    EventRequestContext eventRequestContext;
 
     @Autowired
     ObjectMapper objectMapper;

@@ -5,6 +5,9 @@ import com.techverito.banking.dto.DocumentResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerDocument;
 import com.techverito.banking.entity.DocumentType;
+import com.techverito.banking.event.BusinessEvent;
+import com.techverito.banking.event.DocumentUploadedPayload;
+import com.techverito.banking.event.EventBus;
 import com.techverito.banking.exception.DocumentValidationException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerDocumentRepository;
@@ -28,15 +31,18 @@ public class DocumentService {
     private final CustomerRepository customerRepository;
     private final DocumentStorage storage;
     private final DocumentProperties properties;
+    private final EventBus eventBus;
 
     public DocumentService(CustomerDocumentRepository documentRepository,
                            CustomerRepository customerRepository,
                            DocumentStorage storage,
-                           DocumentProperties properties) {
+                           DocumentProperties properties,
+                           EventBus eventBus) {
         this.documentRepository = documentRepository;
         this.customerRepository = customerRepository;
         this.storage = storage;
         this.properties = properties;
+        this.eventBus = eventBus;
     }
 
     public DocumentResponse upload(Long customerId, MultipartFile file, DocumentType documentType,
@@ -70,7 +76,12 @@ public class DocumentService {
                     .uploadedBy(uploadedBy)
                     .uploadedAt(Instant.now())
                     .build();
-            return DocumentResponse.from(documentRepository.save(document));
+            CustomerDocument saved = documentRepository.save(document);
+            eventBus.publish(BusinessEvent.of(
+                    new DocumentUploadedPayload(saved.getId(), saved.getDocumentType(),
+                            saved.getOriginalFileName(), saved.getSizeBytes(), saved.getUploadedBy()),
+                    customerId, null), uploadedBy);
+            return DocumentResponse.from(saved);
         } catch (RuntimeException ex) {
             deleteStoredFile(storedFileName, ex);
             throw ex;

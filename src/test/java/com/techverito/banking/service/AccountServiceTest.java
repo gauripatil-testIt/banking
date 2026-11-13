@@ -3,11 +3,18 @@ package com.techverito.banking.service;
 import com.techverito.banking.dto.AccountRequest;
 import com.techverito.banking.dto.AccountResponse;
 import com.techverito.banking.entity.*;
+import com.techverito.banking.event.AccountOpenedPayload;
+import com.techverito.banking.event.AccountStatusChangedPayload;
+import com.techverito.banking.event.BusinessEvent;
+import com.techverito.banking.event.EventBus;
+import com.techverito.banking.event.EventRequestContext;
+import com.techverito.banking.event.EventType;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.AccountRepository;
 import com.techverito.banking.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -18,6 +25,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,6 +36,12 @@ class AccountServiceTest {
 
     @Mock
     CustomerRepository customerRepository;
+
+    @Mock
+    EventBus eventBus;
+
+    @Mock
+    EventRequestContext requestContext;
 
     @InjectMocks
     AccountService accountService;
@@ -73,6 +87,30 @@ class AccountServiceTest {
         assertThatThrownBy(() -> accountService.create(request()))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Customer");
+    }
+
+    @Test
+    void create_publishesAccountOpenedEvent() {
+        Customer c = customer(1L);
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(c));
+        when(accountRepository.save(any())).thenReturn(account(5L, c));
+        when(requestContext.actor()).thenReturn("teller1");
+
+        accountService.create(request());
+
+        ArgumentCaptor<BusinessEvent> captor = ArgumentCaptor.forClass(BusinessEvent.class);
+        verify(eventBus).publish(captor.capture(), eq("teller1"));
+        BusinessEvent published = captor.getValue();
+        assertThat(published.type()).isEqualTo(EventType.ACCOUNT_OPENED);
+        assertThat(published.customerId()).isEqualTo(1L);
+        assertThat(published.accountId()).isEqualTo(5L);
+        assertThat(published.payload()).isInstanceOfSatisfying(AccountOpenedPayload.class, payload -> {
+            assertThat(payload.accountId()).isEqualTo(5L);
+            assertThat(payload.customerId()).isEqualTo(1L);
+            assertThat(payload.accountNumber()).isEqualTo("ACC001");
+            assertThat(payload.type()).isEqualTo(AccountType.SAVINGS);
+            assertThat(payload.status()).isEqualTo(AccountStatus.ACTIVE);
+        });
     }
 
     @Test
@@ -136,6 +174,44 @@ class AccountServiceTest {
         assertThatThrownBy(() -> accountService.update(99L, request()))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Account");
+    }
+
+    @Test
+    void update_statusChanged_publishesAccountStatusChangedEvent() {
+        Customer c = customer(1L);
+        Account existing = account(1L, c);
+        when(accountRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(c));
+        when(accountRepository.save(any())).thenReturn(existing);
+        when(requestContext.actor()).thenReturn("teller1");
+
+        accountService.update(1L, new AccountRequest(1L, "ACC001", AccountType.SAVINGS,
+                BigDecimal.valueOf(1000), AccountStatus.CLOSED));
+
+        ArgumentCaptor<BusinessEvent> captor = ArgumentCaptor.forClass(BusinessEvent.class);
+        verify(eventBus).publish(captor.capture(), eq("teller1"));
+        BusinessEvent published = captor.getValue();
+        assertThat(published.type()).isEqualTo(EventType.ACCOUNT_STATUS_CHANGED);
+        assertThat(published.customerId()).isEqualTo(1L);
+        assertThat(published.accountId()).isEqualTo(1L);
+        assertThat(published.payload()).isInstanceOfSatisfying(AccountStatusChangedPayload.class, payload -> {
+            assertThat(payload.accountId()).isEqualTo(1L);
+            assertThat(payload.previousStatus()).isEqualTo(AccountStatus.ACTIVE);
+            assertThat(payload.newStatus()).isEqualTo(AccountStatus.CLOSED);
+        });
+    }
+
+    @Test
+    void update_statusUnchanged_publishesNoStatusChangedEvent() {
+        Customer c = customer(1L);
+        Account existing = account(1L, c);
+        when(accountRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(c));
+        when(accountRepository.save(any())).thenReturn(existing);
+
+        accountService.update(1L, request());
+
+        verify(eventBus, never()).publish(any(), any());
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.techverito.banking.controller;
 import com.techverito.banking.dto.DocumentDownloadResult;
 import com.techverito.banking.dto.DocumentResponse;
 import com.techverito.banking.entity.DocumentType;
+import com.techverito.banking.event.EventRequestContext;
 import com.techverito.banking.exception.DocumentContentUnavailableException;
 import com.techverito.banking.exception.DocumentValidationException;
 import com.techverito.banking.exception.GlobalExceptionHandler;
@@ -54,6 +55,9 @@ class DocumentControllerTest {
 
     @MockBean
     DocumentDownloadService documentDownloadService;
+
+    @MockBean
+    EventRequestContext eventRequestContext;
 
     private DocumentResponse response(Long id, String originalFileName) {
         return new DocumentResponse(id, 1L, originalFileName, DocumentType.ID_PROOF, 4L,

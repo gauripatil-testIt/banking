@@ -4,10 +4,16 @@ import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerStatus;
+import com.techverito.banking.event.BusinessEvent;
+import com.techverito.banking.event.CustomerRegisteredPayload;
+import com.techverito.banking.event.EventBus;
+import com.techverito.banking.event.EventRequestContext;
+import com.techverito.banking.event.EventType;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -17,6 +23,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -24,6 +31,12 @@ class CustomerServiceTest {
 
     @Mock
     CustomerRepository customerRepository;
+
+    @Mock
+    EventBus eventBus;
+
+    @Mock
+    EventRequestContext requestContext;
 
     @InjectMocks
     CustomerService customerService;
@@ -50,6 +63,26 @@ class CustomerServiceTest {
         assertThat(res.firstName()).isEqualTo("John");
         assertThat(res.status()).isEqualTo(CustomerStatus.ACTIVE);
         verify(customerRepository).save(any(Customer.class));
+    }
+
+    @Test
+    void create_publishesCustomerRegisteredEvent() {
+        when(customerRepository.save(any())).thenReturn(customer(1L));
+        when(requestContext.actor()).thenReturn("teller1");
+
+        customerService.create(request());
+
+        ArgumentCaptor<BusinessEvent> captor = ArgumentCaptor.forClass(BusinessEvent.class);
+        verify(eventBus).publish(captor.capture(), eq("teller1"));
+        BusinessEvent published = captor.getValue();
+        assertThat(published.type()).isEqualTo(EventType.CUSTOMER_REGISTERED);
+        assertThat(published.customerId()).isEqualTo(1L);
+        assertThat(published.accountId()).isNull();
+        assertThat(published.payload()).isInstanceOfSatisfying(CustomerRegisteredPayload.class, payload -> {
+            assertThat(payload.customerId()).isEqualTo(1L);
+            assertThat(payload.email()).isEqualTo("john@example.com");
+            assertThat(payload.status()).isEqualTo(CustomerStatus.ACTIVE);
+        });
     }
 
     @Test

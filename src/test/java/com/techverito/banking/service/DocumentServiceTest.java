@@ -6,6 +6,10 @@ import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerDocument;
 import com.techverito.banking.entity.CustomerStatus;
 import com.techverito.banking.entity.DocumentType;
+import com.techverito.banking.event.BusinessEvent;
+import com.techverito.banking.event.DocumentUploadedPayload;
+import com.techverito.banking.event.EventBus;
+import com.techverito.banking.event.EventType;
 import com.techverito.banking.exception.DocumentValidationException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerDocumentRepository;
@@ -34,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +53,9 @@ class DocumentServiceTest {
     @Mock
     DocumentStorage storage;
 
+    @Mock
+    EventBus eventBus;
+
     private DocumentService documentService;
 
     @BeforeEach
@@ -56,7 +64,7 @@ class DocumentServiceTest {
                 Path.of("./target/test-documents"),
                 Set.of("pdf", "jpg", "png"),
                 DataSize.ofMegabytes(10));
-        documentService = new DocumentService(documentRepository, customerRepository, storage, properties);
+        documentService = new DocumentService(documentRepository, customerRepository, storage, properties, eventBus);
     }
 
     private Customer customer(Long id) {
@@ -126,6 +134,42 @@ class DocumentServiceTest {
         assertThat(persisted.getUploadedAt()).isNotNull();
         assertThat(persisted.getStoredFileName()).isEqualTo("stored-1.pdf");
         assertThat(persisted.getOriginalFileName()).isEqualTo("kyc proof (final) [übersicht].pdf");
+    }
+
+    @Test
+    void upload_publishesDocumentUploadedEvent() {
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer(1L)));
+        when(storage.store(any(), any())).thenReturn("stored-1.pdf");
+        when(documentRepository.save(any(CustomerDocument.class)))
+                .thenAnswer(invocation -> withId(invocation.getArgument(0), 7L));
+
+        documentService.upload(1L, pdf("proof.pdf"), DocumentType.ID_PROOF, "ops.user", null);
+
+        ArgumentCaptor<BusinessEvent> captor = ArgumentCaptor.forClass(BusinessEvent.class);
+        verify(eventBus).publish(captor.capture(), eq("ops.user"));
+        BusinessEvent published = captor.getValue();
+        assertThat(published.type()).isEqualTo(EventType.DOCUMENT_UPLOADED);
+        assertThat(published.customerId()).isEqualTo(1L);
+        assertThat(published.accountId()).isNull();
+        assertThat(published.payload()).isInstanceOfSatisfying(DocumentUploadedPayload.class, payload -> {
+            assertThat(payload.documentId()).isEqualTo(7L);
+            assertThat(payload.documentType()).isEqualTo(DocumentType.ID_PROOF);
+            assertThat(payload.originalFileName()).isEqualTo("proof.pdf");
+            assertThat(payload.sizeBytes()).isEqualTo("pdf-content".getBytes(StandardCharsets.UTF_8).length);
+            assertThat(payload.uploadedBy()).isEqualTo("ops.user");
+        });
+    }
+
+    @Test
+    void upload_rejectedFile_publishesNothing() {
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer(1L)));
+        MultipartFile file = new MockMultipartFile("file", "notes.txt", "text/plain",
+                "hello".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> documentService.upload(1L, file, DocumentType.ID_PROOF, "ops.user", null))
+                .isInstanceOf(DocumentValidationException.class);
+
+        verify(eventBus, never()).publish(any(), any());
     }
 
     @Test
