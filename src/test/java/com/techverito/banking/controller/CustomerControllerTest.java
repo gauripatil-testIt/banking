@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.CustomerStatus;
+import com.techverito.banking.event.EventRequestContext;
 import com.techverito.banking.exception.GlobalExceptionHandler;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.service.CustomerService;
@@ -30,6 +31,9 @@ class CustomerControllerTest {
 
     @MockBean
     CustomerService customerService;
+
+    @MockBean
+    EventRequestContext eventRequestContext;
 
     @Autowired
     ObjectMapper objectMapper;
