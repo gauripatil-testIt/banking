@@ -8,10 +8,12 @@ import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,6 +52,21 @@ class CustomerServiceTest {
         assertThat(res.firstName()).isEqualTo("John");
         assertThat(res.status()).isEqualTo(CustomerStatus.ACTIVE);
         verify(customerRepository).save(any(Customer.class));
+    }
+
+    @Test
+    void create_setsCreatedDateOnPersistedCustomer() {
+        when(customerRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        Instant before = Instant.now();
+
+        customerService.create(request());
+
+        Instant after = Instant.now();
+        ArgumentCaptor<Customer> captor = ArgumentCaptor.forClass(Customer.class);
+        verify(customerRepository).save(captor.capture());
+        Customer persisted = captor.getValue();
+        assertThat(persisted.getCreatedAt()).isNotNull();
+        assertThat(persisted.getCreatedAt()).isBetween(before.minusSeconds(60), after.plusSeconds(60));
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.techverito.banking.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -27,6 +28,7 @@ public class CustomerService {
                 .email(req.email())
                 .phone(req.phone())
                 .status(req.status())
+                .createdAt(Instant.now())
                 .build();
         return CustomerResponse.from(customerRepository.save(customer));
     }
