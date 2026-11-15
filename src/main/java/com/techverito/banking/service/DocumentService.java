@@ -9,6 +9,7 @@ import com.techverito.banking.exception.DocumentValidationException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerDocumentRepository;
 import com.techverito.banking.repository.CustomerRepository;
+import com.techverito.banking.repository.DocumentDownloadRepository;
 import com.techverito.banking.storage.DocumentStorage;
 import com.techverito.banking.storage.DocumentStorageException;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 @Service
 @Transactional
@@ -28,15 +30,18 @@ public class DocumentService {
     private final CustomerRepository customerRepository;
     private final DocumentStorage storage;
     private final DocumentProperties properties;
+    private final DocumentDownloadRepository documentDownloadRepository;
 
     public DocumentService(CustomerDocumentRepository documentRepository,
                            CustomerRepository customerRepository,
                            DocumentStorage storage,
-                           DocumentProperties properties) {
+                           DocumentProperties properties,
+                           DocumentDownloadRepository documentDownloadRepository) {
         this.documentRepository = documentRepository;
         this.customerRepository = customerRepository;
         this.storage = storage;
         this.properties = properties;
+        this.documentDownloadRepository = documentDownloadRepository;
     }
 
     public DocumentResponse upload(Long customerId, MultipartFile file, DocumentType documentType,
@@ -58,7 +63,7 @@ public class DocumentService {
             throw new DocumentStorageException("Could not read the uploaded file: " + originalFileName, ex);
         }
 
-        String storedFileName = storage.store(content, originalFileName);
+        String storedFileName = storage.store(content, originalFileName, customerId);
         try {
             CustomerDocument document = CustomerDocument.builder()
                     .customer(customer)
@@ -83,6 +88,21 @@ public class DocumentService {
         return documentRepository.findByCustomer_IdOrderByUploadedAtDescIdDesc(customerId).stream()
                 .map(DocumentResponse::from)
                 .toList();
+    }
+
+    /**
+     * Removes the document's stored object first and its record second: when the
+     * storage refuses the delete the request fails and the record is still there
+     * for a retry, so no orphaned object silently accumulates cost.
+     */
+    public void delete(Long customerId, Long documentId) {
+        CustomerDocument document = documentRepository.findById(documentId)
+                .filter(found -> Objects.equals(found.getCustomer().getId(), customerId))
+                .orElseThrow(() -> new ResourceNotFoundException("Document", documentId));
+
+        storage.delete(document.getStoredFileName());
+        documentDownloadRepository.deleteByDocument_Id(documentId);
+        documentRepository.delete(document);
     }
 
     private Customer findCustomerOrThrow(Long customerId) {

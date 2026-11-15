@@ -1,6 +1,7 @@
 package com.techverito.banking.storage;
 
 import com.techverito.banking.config.DocumentProperties;
+import com.techverito.banking.config.StorageType;
 import com.techverito.banking.exception.DocumentContentUnavailableException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,7 +24,8 @@ class LocalFileSystemDocumentStorageTest {
 
     private LocalFileSystemDocumentStorage storage(Path dir) {
         return new LocalFileSystemDocumentStorage(
-                new DocumentProperties(dir, Set.of("pdf", "jpg", "png"), DataSize.ofMegabytes(10)));
+                new DocumentProperties(dir, Set.of("pdf", "jpg", "png"), DataSize.ofMegabytes(10),
+                        StorageType.LOCAL));
     }
 
     private byte[] content(String value) {
@@ -34,7 +36,7 @@ class LocalFileSystemDocumentStorageTest {
     void store_writesContentUnderGeneratedName() throws Exception {
         LocalFileSystemDocumentStorage storage = storage(storageDir);
 
-        String storedFileName = storage.store(content("pdf-bytes"), "invoice.PDF");
+        String storedFileName = storage.store(content("pdf-bytes"), "invoice.PDF", 1L);
 
         assertThat(storedFileName).endsWith(".pdf");
         assertThat(storedFileName).doesNotContain("invoice");
@@ -47,8 +49,8 @@ class LocalFileSystemDocumentStorageTest {
     void store_sameOriginalFileNameTwice_keepsBothFiles() {
         LocalFileSystemDocumentStorage storage = storage(storageDir);
 
-        String first = storage.store(content("first"), "statement.pdf");
-        String second = storage.store(content("second"), "statement.pdf");
+        String first = storage.store(content("first"), "statement.pdf", 1L);
+        String second = storage.store(content("second"), "statement.pdf", 1L);
 
         assertThat(first).isNotEqualTo(second);
         assertThat(storageDir.resolve(first)).exists();
@@ -59,7 +61,7 @@ class LocalFileSystemDocumentStorageTest {
     void store_nameWithSpacesBracketsAndNonEnglishCharacters_succeeds() {
         LocalFileSystemDocumentStorage storage = storage(storageDir);
 
-        String storedFileName = storage.store(content("data"), "pán kyc (final) [übersicht].jpg");
+        String storedFileName = storage.store(content("data"), "pán kyc (final) [übersicht].jpg", 1L);
 
         assertThat(storedFileName).endsWith(".jpg");
         assertThat(storedFileName).matches("[0-9a-f\\-]{36}\\.jpg");
@@ -71,7 +73,7 @@ class LocalFileSystemDocumentStorageTest {
         Path missing = storageDir.resolve("nested/documents");
         LocalFileSystemDocumentStorage storage = storage(missing);
 
-        String storedFileName = storage.store(content("data"), "form.png");
+        String storedFileName = storage.store(content("data"), "form.png", 1L);
 
         assertThat(missing).isDirectory();
         assertThat(missing.resolve(storedFileName)).exists();
@@ -80,7 +82,7 @@ class LocalFileSystemDocumentStorageTest {
     @Test
     void delete_existingFile_removesIt() {
         LocalFileSystemDocumentStorage storage = storage(storageDir);
-        String storedFileName = storage.store(content("data"), "proof.pdf");
+        String storedFileName = storage.store(content("data"), "proof.pdf", 1L);
 
         storage.delete(storedFileName);
 
@@ -102,7 +104,7 @@ class LocalFileSystemDocumentStorageTest {
             uploaded[i] = (byte) (i % 251);
         }
 
-        String storedFileName = storage.store(uploaded, "big.pdf");
+        String storedFileName = storage.store(uploaded, "big.pdf", 1L);
 
         Resource resource = storage.load(storedFileName);
         byte[] loaded = resource.getInputStream().readAllBytes();
@@ -116,7 +118,7 @@ class LocalFileSystemDocumentStorageTest {
         LocalFileSystemDocumentStorage storage = storage(storageDir);
         byte[] uploaded = content("data with spaces, brackets [ü] and non-English characters");
 
-        String storedFileName = storage.store(uploaded, "pán kyc (final) [übersicht].png");
+        String storedFileName = storage.store(uploaded, "pán kyc (final) [übersicht].png", 1L);
 
         Resource resource = storage.load(storedFileName);
 
@@ -138,7 +140,7 @@ class LocalFileSystemDocumentStorageTest {
     @Test
     void load_afterDelete_throwsDocumentContentUnavailableException() {
         LocalFileSystemDocumentStorage storage = storage(storageDir);
-        String storedFileName = storage.store(content("data"), "proof.pdf");
+        String storedFileName = storage.store(content("data"), "proof.pdf", 1L);
 
         storage.delete(storedFileName);
 

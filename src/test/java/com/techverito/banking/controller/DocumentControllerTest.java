@@ -35,9 +35,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -326,5 +328,23 @@ class DocumentControllerTest {
                 .andReturn();
 
         assertThat(result.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains("downloadedBy");
+    }
+
+    @Test
+    void DELETE_customers_id_documents_documentId_returns204() throws Exception {
+        mockMvc.perform(delete("/customers/1/documents/7"))
+                .andExpect(status().isNoContent());
+
+        verify(documentService).delete(1L, 7L);
+    }
+
+    @Test
+    void DELETE_customers_id_documents_documentId_unknownDocument_returns404() throws Exception {
+        doThrow(new ResourceNotFoundException("Document", 9L)).when(documentService).delete(1L, 9L);
+
+        mockMvc.perform(delete("/customers/1/documents/9"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.detail").value("Document not found with id: 9"));
     }
 }

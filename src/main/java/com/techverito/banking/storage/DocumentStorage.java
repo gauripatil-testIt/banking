@@ -11,8 +11,11 @@ public interface DocumentStorage {
 
     /**
      * Stores the content under a system-assigned name and returns that name.
+     *
+     * @param customerId the customer the document belongs to, so implementations
+     *         whose storage is organised by customer can place it accordingly
      */
-    String store(byte[] content, String originalFileName);
+    String store(byte[] content, String originalFileName, Long customerId);
 
     /**
      * Returns the stored file as a streaming resource, so a maximum size document

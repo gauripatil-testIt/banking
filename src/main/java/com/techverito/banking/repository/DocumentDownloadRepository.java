@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface DocumentDownloadRepository extends JpaRepository<DocumentDownload, Long> {
     List<DocumentDownload> findByDocument_IdOrderByDownloadedAtDescIdDesc(Long documentId);
+
+    long deleteByDocument_Id(Long documentId);
 }
