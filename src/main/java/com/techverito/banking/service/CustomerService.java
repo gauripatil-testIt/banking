@@ -3,6 +3,8 @@ package com.techverito.banking.service;
 import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
+import com.techverito.banking.event.EventType;
+import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
@@ -16,9 +18,12 @@ import java.util.List;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final BusinessEventOutboxRecorder outboxRecorder;
 
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(CustomerRepository customerRepository,
+                           BusinessEventOutboxRecorder outboxRecorder) {
         this.customerRepository = customerRepository;
+        this.outboxRecorder = outboxRecorder;
     }
 
     public CustomerResponse create(CustomerRequest req) {
@@ -30,7 +35,11 @@ public class CustomerService {
                 .status(req.status())
                 .createdAt(Instant.now())
                 .build();
-        return CustomerResponse.from(customerRepository.save(customer));
+        Customer saved = customerRepository.save(customer);
+        // Recorded in the same transaction as the customer, so the event is published
+        // only once the registration has committed.
+        outboxRecorder.record(EventType.CUSTOMER_REGISTERED, saved.getId(), null);
+        return CustomerResponse.from(saved);
     }
 
     @Transactional(readOnly = true)

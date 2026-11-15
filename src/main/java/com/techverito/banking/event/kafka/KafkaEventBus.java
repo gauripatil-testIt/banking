@@ -3,16 +3,23 @@ package com.techverito.banking.event.kafka;
 import com.techverito.banking.config.EventProperties;
 import com.techverito.banking.event.BusinessEvent;
 import com.techverito.banking.event.BusinessEventBus;
+import com.techverito.banking.event.EventPublishException;
 import com.techverito.banking.event.EventType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 /**
@@ -20,14 +27,20 @@ import java.util.function.Consumer;
  * dispatches the events consumed from that topic to the handlers registered through
  * {@link #subscribe(EventType, Consumer)}.
  *
- * <p>An event is keyed by what it concerns – {@code customer:{customerId}} when a
- * customer is named, {@code account:{accountId}} otherwise – so the events of one
- * customer stay in order on one partition.</p>
+ * <p>An event is keyed by what it concerns – {@code account:{accountId}} whenever it
+ * names an account, {@code customer:{customerId}} only for a customer-only event – so
+ * the events of one account stay in order on one partition, while different accounts
+ * spread over different partitions and never queue behind each other.</p>
  *
- * <p>Delivery is deliberately plain: no retry chain, no dead-letter topic and no
- * deduplication by event id. Reliable delivery is a later story; a handler that
- * fails is logged and the container decides what to do with the record, exactly as
- * with any other listener in this application.</p>
+ * <p>Publishing is not fire-and-forget: {@link #publish(BusinessEvent)} returns only
+ * after Kafka acknowledged the record, and fails with an
+ * {@link EventPublishException} naming the event id when the broker did not store it,
+ * so the caller can retry instead of losing the event.</p>
+ *
+ * <p>Consumption is deliberately plain: no retry chain, no dead-letter handling and no
+ * deduplication by event id on the consumer side. A handler that fails is logged and
+ * the container decides what to do with the record, exactly as with any other listener
+ * in this application.</p>
  */
 @Component
 @ConditionalOnProperty(prefix = "banking.events", name = "transport", havingValue = "kafka", matchIfMissing = true)
@@ -36,6 +49,9 @@ public class KafkaEventBus implements BusinessEventBus {
     static final String CUSTOMER_KEY_PREFIX = "customer:";
 
     static final String ACCOUNT_KEY_PREFIX = "account:";
+
+    /** How long a publish waits for the broker's acknowledgement before failing the event. */
+    static final Duration ACK_TIMEOUT = Duration.ofSeconds(30);
 
     private static final Logger log = LoggerFactory.getLogger(KafkaEventBus.class);
 
@@ -48,17 +64,46 @@ public class KafkaEventBus implements BusinessEventBus {
         this.properties = properties;
     }
 
+    /**
+     * Publishes the event and waits for Kafka's acknowledgement. A send that fails or
+     * is not acknowledged within {@link #ACK_TIMEOUT} throws an
+     * {@link EventPublishException} naming the event id, so the caller can retry it.
+     */
     @Override
     public void publish(BusinessEvent event) {
         Objects.requireNonNull(event, "event");
         String key = businessKey(event);
+        CompletableFuture<SendResult<String, BusinessEvent>> send;
         try {
-            kafkaTemplate.send(properties.topic(), key, event);
+            send = kafkaTemplate.send(properties.topic(), key, event);
         } catch (RuntimeException ex) {
             log.error("Could not publish a business event: eventId={}, type={}, correlationId={}, topic={}, key={}",
                     event.eventId(), event.type(), event.correlationId(), properties.topic(), key, ex);
-            throw ex;
+            throw new EventPublishException(event.eventId(), describe(ex), ex);
         }
+        try {
+            send.get(ACK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            log.error("Interrupted while waiting for Kafka to acknowledge a business event: eventId={}, type={}, "
+                    + "correlationId={}, topic={}, key={}", event.eventId(), event.type(), event.correlationId(),
+                    properties.topic(), key, ex);
+            throw new EventPublishException(event.eventId(),
+                    "the wait for Kafka's acknowledgement was interrupted", ex);
+        } catch (ExecutionException | TimeoutException ex) {
+            Throwable cause = (ex.getCause() != null) ? ex.getCause() : ex;
+            log.error("Kafka did not acknowledge a business event: eventId={}, type={}, correlationId={}, topic={}, key={}",
+                    event.eventId(), event.type(), event.correlationId(), properties.topic(), key, cause);
+            throw new EventPublishException(event.eventId(),
+                    "Kafka did not acknowledge it within " + ACK_TIMEOUT.toSeconds() + "s: " + describe(cause), cause);
+        }
+        log.debug("Kafka acknowledged business event: eventId={}, type={}, correlationId={}, topic={}, key={}",
+                event.eventId(), event.type(), event.correlationId(), properties.topic(), key);
+    }
+
+    private String describe(Throwable failure) {
+        String message = failure.getMessage();
+        return (message != null && !message.isBlank()) ? message : failure.getClass().getSimpleName();
     }
 
     @Override
@@ -100,11 +145,16 @@ public class KafkaEventBus implements BusinessEventBus {
                 event.eventId(), event.type(), event.correlationId());
     }
 
+    /**
+     * The ordering key: an event that names an account is keyed by the account, so the
+     * events of one account keep their order; only a customer-only event is keyed by
+     * the customer.
+     */
     private String businessKey(BusinessEvent event) {
-        if (event.customerId() != null) {
-            return CUSTOMER_KEY_PREFIX + event.customerId();
+        if (event.accountId() != null) {
+            return ACCOUNT_KEY_PREFIX + event.accountId();
         }
-        return ACCOUNT_KEY_PREFIX + event.accountId();
+        return CUSTOMER_KEY_PREFIX + event.customerId();
     }
 
     /** One handler registered for one event type. */

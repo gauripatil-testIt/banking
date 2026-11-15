@@ -5,6 +5,8 @@ import com.techverito.banking.entity.Account;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.DataExport;
 import com.techverito.banking.entity.ExportType;
+import com.techverito.banking.event.EventType;
+import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
 import com.techverito.banking.exception.ExportValidationException;
 import com.techverito.banking.repository.AccountRepository;
 import com.techverito.banking.repository.CustomerRepository;
@@ -23,6 +25,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Builds the customer/account CSV export and records one audit row per export.
@@ -42,15 +45,18 @@ public class ExportService {
     private final CustomerRepository customerRepository;
     private final AccountRepository accountRepository;
     private final DataExportRepository dataExportRepository;
+    private final BusinessEventOutboxRecorder outboxRecorder;
     private final Clock clock;
 
     public ExportService(CustomerRepository customerRepository,
                          AccountRepository accountRepository,
                          DataExportRepository dataExportRepository,
+                         BusinessEventOutboxRecorder outboxRecorder,
                          Clock clock) {
         this.customerRepository = customerRepository;
         this.accountRepository = accountRepository;
         this.dataExportRepository = dataExportRepository;
+        this.outboxRecorder = outboxRecorder;
         this.clock = clock;
     }
 
@@ -68,20 +74,27 @@ public class ExportService {
     }
 
     /**
-     * Writes the CSV for a prepared export, then saves the audit row. The supplied
-     * stream is flushed but never closed.
+     * Writes the CSV for a prepared export, then saves the audit row and records the
+     * event announcing it. The supplied stream is flushed but never closed.
      */
     public void write(PreparedExport plan, OutputStream out) throws IOException {
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
         long dataRows = 0L;
+        Long exportCustomerId = null;
         if (plan.type().includesCustomers()) {
-            dataRows += writeCustomers(writer);
+            List<Customer> customers = writeCustomers(writer);
+            dataRows += customers.size();
+            exportCustomerId = firstCustomerId(customers);
         }
         if (plan.type() == ExportType.BOTH) {
             writer.write(CsvWriter.LINE_SEPARATOR);
         }
         if (plan.type().includesAccounts()) {
-            dataRows += writeAccounts(writer);
+            List<Account> accounts = writeAccounts(writer);
+            dataRows += accounts.size();
+            if (exportCustomerId == null) {
+                exportCustomerId = firstAccountOwnerId(accounts);
+            }
         }
         writer.flush();
 
@@ -91,16 +104,23 @@ public class ExportService {
                 .recordCount(dataRows)
                 .exportedAt(Instant.now(clock))
                 .build());
+
+        // An event has to name what it concerns and this export covers every customer,
+        // so it is announced against the first customer it contains; an export with no
+        // rows contains nothing to announce.
+        if (exportCustomerId != null) {
+            outboxRecorder.record(EventType.EXPORT_REQUESTED, exportCustomerId, null);
+        }
     }
 
-    private long writeCustomers(Writer writer) throws IOException {
+    private List<Customer> writeCustomers(Writer writer) throws IOException {
         CsvWriter.writeLine(writer, ExportHeaders.CUSTOMERS);
         List<Customer> customers = customerRepository.findAll().stream()
                 .sorted(Comparator.comparing(Customer::getId, Comparator.nullsLast(Long::compareTo)))
                 .toList();
         if (customers.isEmpty()) {
             CsvWriter.writeLine(writer, List.of(ExportHeaders.NO_RECORDS));
-            return 0L;
+            return List.of();
         }
         for (Customer customer : customers) {
             CsvWriter.writeLine(writer, List.of(
@@ -110,17 +130,17 @@ public class ExportService {
                     (customer.getStatus() != null) ? customer.getStatus().name() : "",
                     ExportFormatting.dateTime(customer.getCreatedAt())));
         }
-        return customers.size();
+        return customers;
     }
 
-    private long writeAccounts(Writer writer) throws IOException {
+    private List<Account> writeAccounts(Writer writer) throws IOException {
         CsvWriter.writeLine(writer, ExportHeaders.ACCOUNTS);
         List<Account> accounts = accountRepository.findAllWithCustomer().stream()
                 .sorted(Comparator.comparing(Account::getId, Comparator.nullsLast(Long::compareTo)))
                 .toList();
         if (accounts.isEmpty()) {
             CsvWriter.writeLine(writer, List.of(ExportHeaders.NO_RECORDS));
-            return 0L;
+            return List.of();
         }
         for (Account account : accounts) {
             Customer owner = account.getCustomer();
@@ -131,7 +151,25 @@ public class ExportService {
                     ExportFormatting.money(account.getBalance()),
                     (owner != null) ? reference(owner.getId()) : ""));
         }
-        return accounts.size();
+        return accounts;
+    }
+
+    private Long firstCustomerId(List<Customer> customers) {
+        return customers.stream()
+                .map(Customer::getId)
+                .filter(Objects::nonNull)
+                .min(Long::compareTo)
+                .orElse(null);
+    }
+
+    private Long firstAccountOwnerId(List<Account> accounts) {
+        return accounts.stream()
+                .map(Account::getCustomer)
+                .filter(Objects::nonNull)
+                .map(Customer::getId)
+                .filter(Objects::nonNull)
+                .min(Long::compareTo)
+                .orElse(null);
     }
 
     private String reference(Long id) {

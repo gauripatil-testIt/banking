@@ -41,6 +41,13 @@ import java.util.Map;
  * <p>The whole configuration is only active for the Kafka transport, so an
  * application started with {@code banking.events.transport=in-memory} creates no
  * producer, no consumer and no topic, and therefore never contacts a broker.</p>
+ *
+ * <p>Publishing is at-least-once with the broker's own duplicate suppression: the
+ * producer asks for {@code acks=all}, which is what "stored" means for the outbox
+ * publisher, and has idempotence enabled, so a producer retry cannot append the same
+ * record twice. The topic has three partitions, so the two business keys in use spread
+ * over separate partitions and one account's backlog never blocks another's; records
+ * with the same key still keep their order on one partition.</p>
  */
 @Configuration
 @EnableKafka
@@ -60,6 +67,17 @@ public class KafkaEventConfig {
     /** A new subscriber of an existing topic still sees the events already on it. */
     private static final String EARLIEST = "earliest";
 
+    /**
+     * A publish only counts once every in-sync replica has the record, and the
+     * producer's idempotence keeps its own retries from writing the same record twice.
+     */
+    private static final String ACKS_ALL = "all";
+
+    /** Bounds a dead-broker wait, so a drain attempt fails and is retried instead of hanging. */
+    private static final int REQUEST_TIMEOUT_MS = 5_000;
+
+    private static final int DELIVERY_TIMEOUT_MS = 15_000;
+
     @Bean
     public ProducerFactory<String, BusinessEvent> producerFactory(KafkaProperties kafkaProperties) {
         Map<String, Object> config = new HashMap<>();
@@ -67,6 +85,10 @@ public class KafkaEventConfig {
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         config.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
+        config.put(ProducerConfig.ACKS_CONFIG, ACKS_ALL);
+        config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        config.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, REQUEST_TIMEOUT_MS);
+        config.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, DELIVERY_TIMEOUT_MS);
         return new DefaultKafkaProducerFactory<>(config);
     }
 
@@ -105,7 +127,19 @@ public class KafkaEventConfig {
     @Bean
     public NewTopic businessEventsTopic(EventProperties properties) {
         return TopicBuilder.name(properties.topic())
-                .partitions(1)
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
+    /**
+     * The dead-letter topic of the business-event topic, derived from the one topic
+     * setting, so it exists in a freshly started local Kafka before any event fails.
+     */
+    @Bean
+    public NewTopic businessEventsDeadLetterTopic(EventProperties properties) {
+        return TopicBuilder.name(KafkaDeadLetterPublisher.deadLetterTopicName(properties.topic()))
+                .partitions(3)
                 .replicas(1)
                 .build();
     }

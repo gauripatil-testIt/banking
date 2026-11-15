@@ -4,6 +4,7 @@ import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerStatus;
+import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,9 @@ class CustomerServiceTest {
 
     @Mock
     CustomerRepository customerRepository;
+
+    @Mock
+    BusinessEventOutboxRecorder outboxRecorder;
 
     @InjectMocks
     CustomerService customerService;

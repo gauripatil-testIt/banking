@@ -3,7 +3,10 @@ package com.techverito.banking.service;
 import com.techverito.banking.dto.AccountRequest;
 import com.techverito.banking.dto.AccountResponse;
 import com.techverito.banking.entity.Account;
+import com.techverito.banking.entity.AccountStatus;
 import com.techverito.banking.entity.Customer;
+import com.techverito.banking.event.EventType;
+import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.AccountRepository;
 import com.techverito.banking.repository.CustomerRepository;
@@ -18,10 +21,13 @@ public class AccountService {
 
     private final AccountRepository accountRepository;
     private final CustomerRepository customerRepository;
+    private final BusinessEventOutboxRecorder outboxRecorder;
 
-    public AccountService(AccountRepository accountRepository, CustomerRepository customerRepository) {
+    public AccountService(AccountRepository accountRepository, CustomerRepository customerRepository,
+                          BusinessEventOutboxRecorder outboxRecorder) {
         this.accountRepository = accountRepository;
         this.customerRepository = customerRepository;
+        this.outboxRecorder = outboxRecorder;
     }
 
     public AccountResponse create(AccountRequest req) {
@@ -34,7 +40,11 @@ public class AccountService {
                 .balance(req.balance())
                 .status(req.status())
                 .build();
-        return AccountResponse.from(accountRepository.save(account));
+        Account saved = accountRepository.save(account);
+        // Recorded in the same transaction as the account, so the event is published
+        // only once the account has committed.
+        outboxRecorder.record(EventType.ACCOUNT_OPENED, saved.getCustomer().getId(), saved.getId());
+        return AccountResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -54,12 +64,19 @@ public class AccountService {
         Account account = findOrThrow(id);
         Customer customer = customerRepository.findById(req.customerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", req.customerId()));
+        AccountStatus previousStatus = account.getStatus();
         account.setCustomer(customer);
         account.setAccountNumber(req.accountNumber());
         account.setType(req.type());
         account.setBalance(req.balance());
         account.setStatus(req.status());
-        return AccountResponse.from(accountRepository.save(account));
+        Account saved = accountRepository.save(account);
+        if (previousStatus != saved.getStatus()) {
+            // Keyed by the account, so a status change stays in order with the rest of
+            // this account's events.
+            outboxRecorder.record(EventType.ACCOUNT_STATUS_CHANGED, saved.getCustomer().getId(), saved.getId());
+        }
+        return AccountResponse.from(saved);
     }
 
     public void delete(Long id) {

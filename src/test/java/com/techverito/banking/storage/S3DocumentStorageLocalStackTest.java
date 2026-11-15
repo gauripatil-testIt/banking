@@ -9,6 +9,7 @@ import com.techverito.banking.entity.CustomerDocument;
 import com.techverito.banking.entity.CustomerStatus;
 import com.techverito.banking.entity.DocumentDownload;
 import com.techverito.banking.entity.DocumentType;
+import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
 import com.techverito.banking.exception.DocumentContentUnavailableException;
 import com.techverito.banking.repository.CustomerDocumentRepository;
 import com.techverito.banking.repository.CustomerRepository;
@@ -232,7 +233,7 @@ class S3DocumentStorageLocalStackTest {
         when(documentRepository.findById(11L)).thenReturn(Optional.of(stored));
 
         DocumentService documentService = new DocumentService(documentRepository, mock(CustomerRepository.class),
-                storage, documentProperties(), downloadRepository);
+                storage, documentProperties(), downloadRepository, mock(BusinessEventOutboxRecorder.class));
 
         documentService.delete(existingCustomer.getId(), 11L);
 

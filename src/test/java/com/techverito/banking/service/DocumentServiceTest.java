@@ -7,6 +7,7 @@ import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerDocument;
 import com.techverito.banking.entity.CustomerStatus;
 import com.techverito.banking.entity.DocumentType;
+import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
 import com.techverito.banking.exception.DocumentValidationException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerDocumentRepository;
@@ -56,6 +57,9 @@ class DocumentServiceTest {
     @Mock
     DocumentDownloadRepository documentDownloadRepository;
 
+    @Mock
+    BusinessEventOutboxRecorder outboxRecorder;
+
     private DocumentService documentService;
 
     @BeforeEach
@@ -66,7 +70,7 @@ class DocumentServiceTest {
                 DataSize.ofMegabytes(10),
                 StorageType.LOCAL);
         documentService = new DocumentService(documentRepository, customerRepository, storage, properties,
-                documentDownloadRepository);
+                documentDownloadRepository, outboxRecorder);
     }
 
     private Customer customer(Long id) {

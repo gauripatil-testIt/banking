@@ -5,6 +5,8 @@ import com.techverito.banking.dto.DocumentResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerDocument;
 import com.techverito.banking.entity.DocumentType;
+import com.techverito.banking.event.EventType;
+import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
 import com.techverito.banking.exception.DocumentValidationException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerDocumentRepository;
@@ -31,17 +33,20 @@ public class DocumentService {
     private final DocumentStorage storage;
     private final DocumentProperties properties;
     private final DocumentDownloadRepository documentDownloadRepository;
+    private final BusinessEventOutboxRecorder outboxRecorder;
 
     public DocumentService(CustomerDocumentRepository documentRepository,
                            CustomerRepository customerRepository,
                            DocumentStorage storage,
                            DocumentProperties properties,
-                           DocumentDownloadRepository documentDownloadRepository) {
+                           DocumentDownloadRepository documentDownloadRepository,
+                           BusinessEventOutboxRecorder outboxRecorder) {
         this.documentRepository = documentRepository;
         this.customerRepository = customerRepository;
         this.storage = storage;
         this.properties = properties;
         this.documentDownloadRepository = documentDownloadRepository;
+        this.outboxRecorder = outboxRecorder;
     }
 
     public DocumentResponse upload(Long customerId, MultipartFile file, DocumentType documentType,
@@ -75,7 +80,11 @@ public class DocumentService {
                     .uploadedBy(uploadedBy)
                     .uploadedAt(Instant.now())
                     .build();
-            return DocumentResponse.from(documentRepository.save(document));
+            CustomerDocument saved = documentRepository.save(document);
+            // Recorded in the same transaction as the document row, so a document that
+            // is not stored announces nothing.
+            outboxRecorder.record(EventType.DOCUMENT_UPLOADED, customerId, null);
+            return DocumentResponse.from(saved);
         } catch (RuntimeException ex) {
             deleteStoredFile(storedFileName, ex);
             throw ex;
