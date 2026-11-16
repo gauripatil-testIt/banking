@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techverito.banking.config.BackgroundTaskProperties;
 import com.techverito.banking.entity.BackgroundTaskOutboxEntry;
 import com.techverito.banking.entity.BackgroundTaskStatus;
+import com.techverito.banking.event.RetrySchedule;
 import com.techverito.banking.repository.BackgroundTaskOutboxRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -118,7 +119,8 @@ public class BackgroundTaskOutboxPublisher {
                     attempts, reason);
             return;
         }
-        entry.setNextAttemptAt(now.plus(properties.retryDelay()));
+        entry.setNextAttemptAt(RetrySchedule.nextAttemptAt(now, attempts, properties.retryInitialDelay(),
+                properties.retryMultiplier()));
         outboxRepository.save(entry);
         log.warn("A background task could not be published and will be retried: taskId={}, type={}, "
                         + "recordType={}, recordId={}, attempts={}, reason={}",

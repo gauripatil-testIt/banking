@@ -56,7 +56,9 @@ class BackgroundTaskOutboxPublisherTest {
 
     private static final Instant NOW = Instant.parse("2025-03-04T09:07:45Z");
 
-    private static final Duration RETRY_DELAY = Duration.ofSeconds(30);
+    private static final Duration RETRY_INITIAL_DELAY = Duration.ofSeconds(1);
+
+    private static final double RETRY_MULTIPLIER = 2;
 
     private static final int MAX_ATTEMPTS = 3;
 
@@ -75,7 +77,7 @@ class BackgroundTaskOutboxPublisherTest {
     private final BackgroundTaskPublisher taskPublisher = mock(BackgroundTaskPublisher.class);
 
     private final BackgroundTaskProperties properties = new BackgroundTaskProperties(
-            "banking.background-tasks", MAX_ATTEMPTS, RETRY_DELAY, 200,
+            "banking.background-tasks", MAX_ATTEMPTS, RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, 200,
             Duration.ofSeconds(1), Duration.ofSeconds(30));
 
     private BackgroundTaskOutboxRecorder recorder;
@@ -146,7 +148,7 @@ class BackgroundTaskOutboxPublisherTest {
         assertThat(failedRow.getLastError())
                 .contains(recorded.taskId())
                 .contains(CONFIRMATION_FAILURE);
-        assertThat(failedRow.getNextAttemptAt()).isEqualTo(NOW.plus(RETRY_DELAY));
+        assertThat(failedRow.getNextAttemptAt()).isEqualTo(NOW.plus(RETRY_INITIAL_DELAY));
         assertThat(failedRow.getPublishedAt()).isNull();
 
         // Not due yet, so the next drain leaves it alone.
@@ -154,7 +156,7 @@ class BackgroundTaskOutboxPublisherTest {
         assertThat(storedRows().get(0).getAttempts()).isEqualTo(1);
         verify(taskPublisher, times(1)).publish(any());
 
-        clock.advance(RETRY_DELAY);
+        clock.advance(RETRY_INITIAL_DELAY);
         publisher.drain();
 
         BackgroundTaskOutboxEntry publishedRow = storedRows().get(0);
@@ -192,7 +194,7 @@ class BackgroundTaskOutboxPublisherTest {
 
         publisher.drain();
         publisher.drain();
-        clock.advance(RETRY_DELAY);
+        clock.advance(RETRY_INITIAL_DELAY);
         publisher.drain();
 
         verify(taskPublisher, times(1)).publish(any());
@@ -213,7 +215,7 @@ class BackgroundTaskOutboxPublisherTest {
             for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
                 publisher.drain();
                 if (attempt < MAX_ATTEMPTS) {
-                    clock.advance(RETRY_DELAY);
+                    clock.advance(RETRY_INITIAL_DELAY.multipliedBy((long) Math.pow(RETRY_MULTIPLIER, attempt - 1)));
                 }
             }
             // A FAILED row is not PENDING, so it is never selected again.
@@ -242,6 +244,33 @@ class BackgroundTaskOutboxPublisherTest {
             logger.detachAppender(appender);
             appender.stop();
         }
+    }
+
+    @Test
+    void drain_schedulesEachRetryWithTheExponentialDelayAndGivesUpAtTheAttemptLimit() {
+        BackgroundTaskMessage recorded = recorder.submit(TaskType.WELCOME_EMAIL, "customer", 1L, 1L);
+        doThrow(confirmationFailure(recorded.taskId())).when(taskPublisher).publish(any());
+
+        publisher.drain();
+        BackgroundTaskOutboxEntry firstFailure = rowOf(TaskType.WELCOME_EMAIL);
+        assertThat(firstFailure.getAttempts()).isEqualTo(1);
+        assertThat(firstFailure.getNextAttemptAt()).isEqualTo(NOW.plusSeconds(1));
+
+        clock.advance(Duration.ofSeconds(1));
+        Instant secondFailure = clock.instant();
+        publisher.drain();
+        BackgroundTaskOutboxEntry secondFailureRow = rowOf(TaskType.WELCOME_EMAIL);
+        assertThat(secondFailureRow.getAttempts()).isEqualTo(2);
+        assertThat(secondFailureRow.getNextAttemptAt()).isEqualTo(secondFailure.plusSeconds(2));
+
+        // The third failure is the attempt limit, so the row is parked instead of rescheduled.
+        clock.advance(Duration.ofSeconds(2));
+        publisher.drain();
+
+        BackgroundTaskOutboxEntry exhausted = rowOf(TaskType.WELCOME_EMAIL);
+        assertThat(exhausted.getStatus()).isEqualTo(BackgroundTaskStatus.FAILED);
+        assertThat(exhausted.getAttempts()).isEqualTo(MAX_ATTEMPTS);
+        verify(taskPublisher, times(MAX_ATTEMPTS)).publish(any());
     }
 
     /** A clock a test can move forward, so "not due yet" and "due on the retry" are checkable. */

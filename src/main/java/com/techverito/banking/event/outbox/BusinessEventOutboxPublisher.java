@@ -7,7 +7,9 @@ import com.techverito.banking.entity.OutboxEventStatus;
 import com.techverito.banking.event.BusinessEvent;
 import com.techverito.banking.event.BusinessEventBus;
 import com.techverito.banking.event.DeadLetterPublisher;
+import com.techverito.banking.event.RetrySchedule;
 import com.techverito.banking.repository.BusinessEventOutboxRepository;
+import com.techverito.banking.service.DeadLetterService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -36,9 +38,10 @@ import java.util.Set;
  * publish failed never holds up the other accounts behind it.</p>
  *
  * <p>A row whose attempts are exhausted is kept as {@code FAILED} with the reason, when
- * it was given up on, and is announced through {@link DeadLetterPublisher}, so an event
- * that could not be published is reported with its id and kept for investigation
- * instead of being deleted.</p>
+ * it was given up on, is copied into the dead-letter store with its payload, id, reason,
+ * attempt count and failure times, and is announced through {@link DeadLetterPublisher},
+ * so an event that could not be published is reported with its id and kept for
+ * investigation instead of being deleted.</p>
  *
  * <p>No broker type appears here: the transport is whatever {@link BusinessEventBus}
  * was configured with, and a dead-lettered event goes to whatever
@@ -59,19 +62,22 @@ public class BusinessEventOutboxPublisher {
     private final ObjectMapper objectMapper;
     private final OutboxProperties outboxProperties;
     private final Clock clock;
+    private final DeadLetterService deadLetterService;
 
     public BusinessEventOutboxPublisher(BusinessEventOutboxRepository outboxRepository,
                                         BusinessEventBus businessEventBus,
                                         DeadLetterPublisher deadLetterPublisher,
                                         ObjectMapper objectMapper,
                                         OutboxProperties outboxProperties,
-                                        Clock clock) {
+                                        Clock clock,
+                                        DeadLetterService deadLetterService) {
         this.outboxRepository = outboxRepository;
         this.businessEventBus = businessEventBus;
         this.deadLetterPublisher = deadLetterPublisher;
         this.objectMapper = objectMapper;
         this.outboxProperties = outboxProperties;
         this.clock = clock;
+        this.deadLetterService = deadLetterService;
     }
 
     /**
@@ -126,8 +132,9 @@ public class BusinessEventOutboxPublisher {
 
     /**
      * Keeps the failed row, counts the attempt and either schedules the retry or, once
-     * the attempts are exhausted, keeps it as {@code FAILED} with the reason and
-     * dead-letters the event, so nothing that could not be published is dropped.
+     * the attempts are exhausted, keeps it as {@code FAILED} with the reason, records it in
+     * the dead-letter store and announces it, so nothing that could not be published is
+     * dropped.
      */
     private void recordFailure(BusinessEventOutboxEntry entry, BusinessEvent event, RuntimeException failure) {
         String reason = reason(failure);
@@ -135,14 +142,22 @@ public class BusinessEventOutboxPublisher {
         int attempts = entry.getAttempts() + 1;
         entry.setAttempts(attempts);
         entry.setLastError(reason);
+        // The first failure time is kept as it was; every failure moves the last one, so the
+        // dead-letter record can carry both exactly instead of guessing them later.
+        if (entry.getFirstFailedAt() == null) {
+            entry.setFirstFailedAt(now);
+        }
+        entry.setLastFailedAt(now);
         if (attempts >= outboxProperties.maxAttempts()) {
             entry.setStatus(OutboxEventStatus.FAILED);
             entry.setDeadLetteredAt(now);
             outboxRepository.save(entry);
+            deadLetterService.recordBusinessEventFailure(entry);
             deadLetter(entry, event, reason);
             return;
         }
-        entry.setNextAttemptAt(now.plus(outboxProperties.retryDelay()));
+        entry.setNextAttemptAt(RetrySchedule.nextAttemptAt(now, attempts, outboxProperties.retryInitialDelay(),
+                outboxProperties.retryMultiplier()));
         outboxRepository.save(entry);
         log.warn("A business event could not be published and will be retried: eventId={}, type={}, "
                         + "businessKey={}, attempts={}, reason={}",

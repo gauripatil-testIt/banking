@@ -71,6 +71,14 @@ public class BusinessEventOutboxEntry {
     @Column(name = "published_at")
     private Instant publishedAt;
 
+    /** When the first publish attempt failed, so the dead-letter record can carry it. */
+    @Column(name = "first_failed_at")
+    private Instant firstFailedAt;
+
+    /** When the last publish attempt failed, updated on every further failure. */
+    @Column(name = "last_failed_at")
+    private Instant lastFailedAt;
+
     @Column(name = "dead_lettered_at")
     private Instant deadLetteredAt;
 
@@ -96,6 +104,8 @@ public class BusinessEventOutboxEntry {
         this.nextAttemptAt = b.nextAttemptAt;
         this.lastError = b.lastError;
         this.publishedAt = b.publishedAt;
+        this.firstFailedAt = b.firstFailedAt;
+        this.lastFailedAt = b.lastFailedAt;
         this.deadLetteredAt = b.deadLetteredAt;
         this.createdAt = b.createdAt;
     }
@@ -119,6 +129,8 @@ public class BusinessEventOutboxEntry {
         private Instant nextAttemptAt;
         private String lastError;
         private Instant publishedAt;
+        private Instant firstFailedAt;
+        private Instant lastFailedAt;
         private Instant deadLetteredAt;
         private Instant createdAt;
 
@@ -138,6 +150,8 @@ public class BusinessEventOutboxEntry {
         public Builder nextAttemptAt(Instant v) { this.nextAttemptAt = v; return this; }
         public Builder lastError(String v) { this.lastError = v; return this; }
         public Builder publishedAt(Instant v) { this.publishedAt = v; return this; }
+        public Builder firstFailedAt(Instant v) { this.firstFailedAt = v; return this; }
+        public Builder lastFailedAt(Instant v) { this.lastFailedAt = v; return this; }
         public Builder deadLetteredAt(Instant v) { this.deadLetteredAt = v; return this; }
         public Builder createdAt(Instant v) { this.createdAt = v; return this; }
         public BusinessEventOutboxEntry build() { return new BusinessEventOutboxEntry(this); }
@@ -159,6 +173,8 @@ public class BusinessEventOutboxEntry {
     public Instant getNextAttemptAt() { return nextAttemptAt; }
     public String getLastError() { return lastError; }
     public Instant getPublishedAt() { return publishedAt; }
+    public Instant getFirstFailedAt() { return firstFailedAt; }
+    public Instant getLastFailedAt() { return lastFailedAt; }
     public Instant getDeadLetteredAt() { return deadLetteredAt; }
     public Instant getCreatedAt() { return createdAt; }
 
@@ -177,6 +193,8 @@ public class BusinessEventOutboxEntry {
     public void setNextAttemptAt(Instant v) { this.nextAttemptAt = v; }
     public void setLastError(String v) { this.lastError = v; }
     public void setPublishedAt(Instant v) { this.publishedAt = v; }
+    public void setFirstFailedAt(Instant v) { this.firstFailedAt = v; }
+    public void setLastFailedAt(Instant v) { this.lastFailedAt = v; }
     public void setDeadLetteredAt(Instant v) { this.deadLetteredAt = v; }
     public void setCreatedAt(Instant v) { this.createdAt = v; }
 

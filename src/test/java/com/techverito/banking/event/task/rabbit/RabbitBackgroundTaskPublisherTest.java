@@ -62,7 +62,7 @@ class RabbitBackgroundTaskPublisherTest {
     }
 
     private BackgroundTaskProperties properties(Duration publishTimeout) {
-        return new BackgroundTaskProperties(EXCHANGE, 5, Duration.ofSeconds(30), 200, Duration.ofSeconds(1),
+        return new BackgroundTaskProperties(EXCHANGE, 5, Duration.ofSeconds(1), 2, 200, Duration.ofSeconds(1),
                 publishTimeout);
     }
 

@@ -18,6 +18,8 @@ import com.techverito.banking.event.EventPublishException;
 import com.techverito.banking.event.EventType;
 import com.techverito.banking.event.LoggingDeadLetterPublisher;
 import com.techverito.banking.repository.BusinessEventOutboxRepository;
+import com.techverito.banking.repository.DeadLetterItemRepository;
+import com.techverito.banking.service.DeadLetterService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -56,7 +58,9 @@ class BusinessEventOutboxPublisherTest {
 
     private static final Instant NOW = Instant.parse("2025-03-04T09:07:45Z");
 
-    private static final Duration RETRY_DELAY = Duration.ofSeconds(30);
+    private static final Duration RETRY_INITIAL_DELAY = Duration.ofSeconds(1);
+
+    private static final double RETRY_MULTIPLIER = 2;
 
     private static final int MAX_ATTEMPTS = 3;
 
@@ -68,6 +72,9 @@ class BusinessEventOutboxPublisherTest {
 
     @Autowired
     BusinessEventOutboxRepository outboxRepository;
+
+    @Autowired
+    DeadLetterItemRepository deadLetterItemRepository;
 
     private final ObjectMapper objectMapper = JsonMapper.builder()
             .addModule(new JavaTimeModule())
@@ -84,16 +91,28 @@ class BusinessEventOutboxPublisherTest {
 
     private BusinessEventOutboxPublisher publisher;
 
+    private DeadLetterService deadLetterService;
+
     @BeforeEach
     void setUp() {
         outboxRepository.deleteAll();
+        deadLetterItemRepository.deleteAll();
         clock.reset(NOW);
         eventBus.reset();
         deadLetterPublisher.reset();
         recorder = new BusinessEventOutboxRecorder(outboxRepository, objectMapper, clock, new EventActorContext());
+        deadLetterService = new DeadLetterService(deadLetterItemRepository);
         publisher = new BusinessEventOutboxPublisher(outboxRepository, eventBus, deadLetterPublisher,
-                objectMapper, new OutboxProperties(MAX_ATTEMPTS, RETRY_DELAY, 200,
-                        OutboxProperties.DEFAULT_DRAIN_INTERVAL), clock);
+                objectMapper, new OutboxProperties(MAX_ATTEMPTS, RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, 200,
+                        OutboxProperties.DEFAULT_DRAIN_INTERVAL), clock, deadLetterService);
+    }
+
+    /** A drain configured with its own attempt limit and retry schedule, for the schedule assertions. */
+    private BusinessEventOutboxPublisher publisherWith(int maxAttempts, Duration retryInitialDelay,
+                                                       double retryMultiplier) {
+        return new BusinessEventOutboxPublisher(outboxRepository, eventBus, deadLetterPublisher, objectMapper,
+                new OutboxProperties(maxAttempts, retryInitialDelay, retryMultiplier, 200,
+                        OutboxProperties.DEFAULT_DRAIN_INTERVAL), clock, deadLetterService);
     }
 
     /** The stored rows of one business key, oldest first. */
@@ -200,7 +219,7 @@ class BusinessEventOutboxPublisherTest {
         assertThat(failedRow.getLastError())
                 .contains(recorded.eventId())
                 .contains("the broker did not acknowledge the record");
-        assertThat(failedRow.getNextAttemptAt()).isEqualTo(NOW.plus(RETRY_DELAY));
+        assertThat(failedRow.getNextAttemptAt()).isEqualTo(NOW.plus(RETRY_INITIAL_DELAY));
         assertThat(eventBus.published).isEmpty();
 
         // Not due yet, so the next drain leaves it alone.
@@ -208,7 +227,7 @@ class BusinessEventOutboxPublisherTest {
         assertThat(rowsOf(ACCOUNT_NINE_KEY).get(0).getAttempts()).isEqualTo(1);
         assertThat(eventBus.published).isEmpty();
 
-        clock.advance(RETRY_DELAY);
+        clock.advance(RETRY_INITIAL_DELAY);
         eventBus.failingEventIds.clear();
         publisher.drain();
 
@@ -226,7 +245,7 @@ class BusinessEventOutboxPublisherTest {
 
         publisher.drain();
         publisher.drain();
-        clock.advance(RETRY_DELAY);
+        clock.advance(RETRY_INITIAL_DELAY);
         publisher.drain();
 
         assertThat(eventBus.published).extracting(BusinessEvent::eventId)
@@ -248,7 +267,7 @@ class BusinessEventOutboxPublisherTest {
             for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
                 publisher.drain();
                 if (attempt < MAX_ATTEMPTS) {
-                    clock.advance(RETRY_DELAY);
+                    clock.advance(RETRY_INITIAL_DELAY.multipliedBy((long) Math.pow(RETRY_MULTIPLIER, attempt - 1)));
                 }
             }
             // A FAILED row is not PENDING, so it is never selected again.
@@ -283,6 +302,105 @@ class BusinessEventOutboxPublisherTest {
             logger.detachAppender(appender);
             appender.stop();
         }
+    }
+
+    @Test
+    void drain_givesExactlyFiveAttemptsOnTheExponentialScheduleThenStops() {
+        BusinessEvent recorded = recorder.record(EventType.ACCOUNT_OPENED, 5L, 9L);
+        eventBus.failingEventIds.add(recorded.eventId());
+        BusinessEventOutboxPublisher fiveAttempts = publisherWith(5, RETRY_INITIAL_DELAY, RETRY_MULTIPLIER);
+
+        fiveAttempts.drain();
+        assertThat(rowsOf(ACCOUNT_NINE_KEY).get(0).getNextAttemptAt()).isEqualTo(NOW.plusSeconds(1));
+
+        clock.advance(Duration.ofSeconds(1));
+        Instant secondFailure = clock.instant();
+        fiveAttempts.drain();
+        BusinessEventOutboxEntry secondAttempt = rowsOf(ACCOUNT_NINE_KEY).get(0);
+        assertThat(secondAttempt.getAttempts()).isEqualTo(2);
+        assertThat(secondAttempt.getNextAttemptAt()).isEqualTo(secondFailure.plusSeconds(2));
+
+        clock.advance(Duration.ofSeconds(2));
+        Instant thirdFailure = clock.instant();
+        fiveAttempts.drain();
+        BusinessEventOutboxEntry thirdAttempt = rowsOf(ACCOUNT_NINE_KEY).get(0);
+        assertThat(thirdAttempt.getAttempts()).isEqualTo(3);
+        assertThat(thirdAttempt.getNextAttemptAt()).isEqualTo(thirdFailure.plusSeconds(4));
+
+        clock.advance(Duration.ofSeconds(4));
+        Instant fourthFailure = clock.instant();
+        fiveAttempts.drain();
+        BusinessEventOutboxEntry fourthAttempt = rowsOf(ACCOUNT_NINE_KEY).get(0);
+        assertThat(fourthAttempt.getAttempts()).isEqualTo(4);
+        assertThat(fourthAttempt.getNextAttemptAt()).isEqualTo(fourthFailure.plusSeconds(8));
+
+        clock.advance(Duration.ofSeconds(8));
+        fiveAttempts.drain();
+
+        BusinessEventOutboxEntry exhausted = rowsOf(ACCOUNT_NINE_KEY).get(0);
+        assertThat(exhausted.getStatus()).isEqualTo(OutboxEventStatus.FAILED);
+        assertThat(exhausted.getAttempts()).isEqualTo(5);
+        assertThat(exhausted.getPublishedAt()).isNull();
+        assertThat(eventBus.published).isEmpty();
+
+        // After the fifth failure no further attempt is scheduled for it.
+        clock.advance(Duration.ofMinutes(10));
+        fiveAttempts.drain();
+        assertThat(rowsOf(ACCOUNT_NINE_KEY).get(0).getAttempts()).isEqualTo(5);
+        assertThat(eventBus.published).isEmpty();
+    }
+
+    @Test
+    void drain_allowsExactlyOneRetryWhenTheAttemptLimitIsTwo() {
+        BusinessEvent recorded = recorder.record(EventType.CUSTOMER_REGISTERED, 1L, null);
+        eventBus.failingEventIds.add(recorded.eventId());
+        BusinessEventOutboxPublisher twoAttempts = publisherWith(2, Duration.ofSeconds(5), RETRY_MULTIPLIER);
+
+        twoAttempts.drain();
+        BusinessEventOutboxEntry firstFailure = rowsOf(CUSTOMER_ONE_KEY).get(0);
+        assertThat(firstFailure.getAttempts()).isEqualTo(1);
+        assertThat(firstFailure.getNextAttemptAt()).isEqualTo(NOW.plusSeconds(5));
+
+        // The only retry runs five seconds later, and its failure gives up on the event.
+        clock.advance(Duration.ofSeconds(5));
+        twoAttempts.drain();
+
+        BusinessEventOutboxEntry exhausted = rowsOf(CUSTOMER_ONE_KEY).get(0);
+        assertThat(exhausted.getStatus()).isEqualTo(OutboxEventStatus.FAILED);
+        assertThat(exhausted.getAttempts()).isEqualTo(2);
+        assertThat(eventBus.published).isEmpty();
+    }
+
+    @Test
+    void drain_parksAPoisonEventWithoutHoldingUpLaterRowsOrOtherBusinessKeys() {
+        BusinessEvent poison = recorder.record(EventType.ACCOUNT_OPENED, 5L, 9L);
+        BusinessEvent otherAccount = recorder.record(EventType.ACCOUNT_OPENED, 5L, 10L);
+        eventBus.failingEventIds.add(poison.eventId());
+        BusinessEventOutboxPublisher twoAttempts = publisherWith(2, RETRY_INITIAL_DELAY, RETRY_MULTIPLIER);
+
+        twoAttempts.drain();
+
+        // The failing account waits for its retry while the other account still goes out.
+        assertThat(eventBus.published).extracting(BusinessEvent::eventId)
+                .containsExactly(otherAccount.eventId());
+        assertThat(rowsOf(ACCOUNT_NINE_KEY).get(0).getStatus()).isEqualTo(OutboxEventStatus.PENDING);
+
+        clock.advance(RETRY_INITIAL_DELAY);
+        twoAttempts.drain();
+
+        BusinessEventOutboxEntry poisonRow = rowsOf(ACCOUNT_NINE_KEY).get(0);
+        assertThat(poisonRow.getEventId()).isEqualTo(poison.eventId());
+        assertThat(poisonRow.getStatus()).isEqualTo(OutboxEventStatus.FAILED);
+        assertThat(poisonRow.getAttempts()).isEqualTo(2);
+
+        // A FAILED row is never selected again, so a later event of the same key is not blocked.
+        BusinessEvent laterSameAccount = recorder.record(EventType.ACCOUNT_STATUS_CHANGED, 5L, 9L);
+        twoAttempts.drain();
+
+        assertThat(eventBus.published).extracting(BusinessEvent::eventId)
+                .containsExactly(otherAccount.eventId(), laterSameAccount.eventId());
+        assertThat(rowsOf(ACCOUNT_NINE_KEY)).extracting(BusinessEventOutboxEntry::getStatus)
+                .containsExactly(OutboxEventStatus.FAILED, OutboxEventStatus.PUBLISHED);
     }
 
     /** The bus a test drives: records what would have been published, fails what it is told to. */

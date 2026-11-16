@@ -80,7 +80,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         // Retry often and generously, so a short outage never exhausts the attempts of a
         // task this test expects to see published once the broker is back.
         "banking.tasks.max-attempts=100",
-        "banking.tasks.retry-delay=PT1S",
+        "banking.tasks.retry-initial-delay=PT1S",
         "banking.tasks.drain-interval=PT0.5S",
         "banking.tasks.publish-timeout=PT5S",
         // A dead broker must fail an attempt quickly instead of holding the drain for a
