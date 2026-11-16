@@ -2,6 +2,7 @@ package com.techverito.banking.controller;
 
 import com.techverito.banking.dto.AccountRequest;
 import com.techverito.banking.dto.AccountResponse;
+import com.techverito.banking.dto.StatementResponse;
 import com.techverito.banking.service.AccountService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -38,6 +39,12 @@ public class AccountController {
     @PutMapping("/{id}")
     public AccountResponse update(@PathVariable Long id, @Valid @RequestBody AccountRequest request) {
         return accountService.update(id, request);
+    }
+
+    @PostMapping("/{id}/statements")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public StatementResponse requestStatement(@PathVariable Long id) {
+        return accountService.requestStatement(id);
     }
 
     @DeleteMapping("/{id}")

@@ -9,6 +9,7 @@ import com.techverito.banking.entity.CustomerStatus;
 import com.techverito.banking.entity.DataExport;
 import com.techverito.banking.entity.ExportType;
 import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
+import com.techverito.banking.event.task.BackgroundTaskOutboxRecorder;
 import com.techverito.banking.exception.ExportValidationException;
 import com.techverito.banking.repository.AccountRepository;
 import com.techverito.banking.repository.CustomerRepository;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -54,12 +56,18 @@ class ExportServiceTest {
     @Mock
     BusinessEventOutboxRecorder outboxRecorder;
 
+    @Mock
+    BackgroundTaskOutboxRecorder backgroundTaskRecorder;
+
+    @Mock
+    PlatformTransactionManager transactionManager;
+
     private ExportService exportService;
 
     @BeforeEach
     void setUp() {
         exportService = new ExportService(customerRepository, accountRepository, dataExportRepository,
-                outboxRecorder, Clock.fixed(NOW, ZoneOffset.UTC));
+                outboxRecorder, backgroundTaskRecorder, transactionManager, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private Customer customer(Long id, String firstName, String lastName, String email,

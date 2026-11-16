@@ -33,6 +33,10 @@ class BrokerTypesNotReferencedInBusinessCodeTest {
             "org.springframework.amqp",
             "com.rabbitmq");
 
+    private static final List<String> RABBIT_PACKAGES = List.of(
+            "org.springframework.amqp",
+            "com.rabbitmq");
+
     private static final List<String> BROKER_PACKAGE_FRAGMENTS = List.of(
             "kafka",
             "amqp",
@@ -56,6 +60,20 @@ class BrokerTypesNotReferencedInBusinessCodeTest {
                     assertThat(source)
                             .as("%s must not mention %s", file, brokerPackage)
                             .doesNotContain(brokerPackage.toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+    }
+
+    @Test
+    void businessCodeNamesNoRabbitType() throws IOException {
+        for (Path directory : BUSINESS_CODE_PACKAGES) {
+            for (Path file : javaFilesIn(directory)) {
+                String source = Files.readString(file, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
+                for (String rabbitPackage : RABBIT_PACKAGES) {
+                    assertThat(source)
+                            .as("%s must not mention %s", file, rabbitPackage)
+                            .doesNotContain(rabbitPackage.toLowerCase(Locale.ROOT));
                 }
             }
         }

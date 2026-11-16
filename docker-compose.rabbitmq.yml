@@ -1,0 +1,25 @@
+# BANK-8 - one-command local RabbitMQ for the background-task queues.
+#
+#   docker compose -f docker-compose.rabbitmq.yml up -d
+#
+# One broker, the management image, so the queue browser comes with it: AMQP on the fixed
+# host port 5672 and the management UI on 15672. Both match what spring.rabbitmq.* defaults
+# to in application.properties, so the application needs no RabbitMQ setting to talk to it
+# locally, and the UI answers at http://localhost:15672 (guest / guest).
+#
+# The application declares its own topology when it starts: the topic exchange
+# banking.background-tasks, one durable queue per task type and one binding per queue. The
+# queues are durable and the publisher sends persistent messages, so a task already in a
+# queue survives a restart of this container.
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: banking-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
