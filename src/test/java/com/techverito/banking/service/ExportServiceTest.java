@@ -8,6 +8,7 @@ import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.CustomerStatus;
 import com.techverito.banking.entity.DataExport;
 import com.techverito.banking.entity.ExportType;
+import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
 import com.techverito.banking.exception.ExportValidationException;
 import com.techverito.banking.repository.AccountRepository;
 import com.techverito.banking.repository.CustomerRepository;
@@ -50,12 +51,15 @@ class ExportServiceTest {
     @Mock
     DataExportRepository dataExportRepository;
 
+    @Mock
+    BusinessEventOutboxRecorder outboxRecorder;
+
     private ExportService exportService;
 
     @BeforeEach
     void setUp() {
         exportService = new ExportService(customerRepository, accountRepository, dataExportRepository,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                outboxRecorder, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private Customer customer(Long id, String firstName, String lastName, String email,

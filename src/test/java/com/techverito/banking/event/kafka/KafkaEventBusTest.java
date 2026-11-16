@@ -7,6 +7,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.techverito.banking.config.EventProperties;
 import com.techverito.banking.config.EventTransport;
 import com.techverito.banking.event.BusinessEvent;
+import com.techverito.banking.event.EventPublishException;
 import com.techverito.banking.event.EventType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,23 +16,28 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * The Kafka adapter against a mocked template: which topic and key an event is
- * published with, and how a consumed event is dispatched to the handlers. No
- * broker, no Docker and no network are involved – the real broker round trip is
- * covered by {@link KafkaEventBusContainerTest}.
+ * published with, that a publish only returns once the broker acknowledged it, and
+ * how a consumed event is dispatched to the handlers. No broker, no Docker and no
+ * network are involved – the real broker round trip is covered by
+ * {@link KafkaEventBusContainerTest}.
  */
 @ExtendWith(MockitoExtension.class)
 class KafkaEventBusTest {
@@ -58,9 +64,20 @@ class KafkaEventBusTest {
         return BusinessEvent.create(type, customerId, accountId, "ops.user", correlationId, CLOCK);
     }
 
+    /** The broker's acknowledgement, so a publish under test completes instead of timing out. */
+    private static CompletableFuture<SendResult<String, BusinessEvent>> acknowledged() {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    /** Stubs the producer to acknowledge a send of the given event under the given key. */
+    private void givenBrokerAcknowledges(String key, BusinessEvent event) {
+        when(kafkaTemplate.send(TOPIC, key, event)).thenReturn(acknowledged());
+    }
+
     @Test
     void publish_sendsToTheConfiguredTopicKeyedByCustomer() {
         BusinessEvent published = event(EventType.CUSTOMER_REGISTERED, 1L, null, "corr-1");
+        givenBrokerAcknowledges("customer:1", published);
 
         bus.publish(published);
 
@@ -70,19 +87,39 @@ class KafkaEventBusTest {
     @Test
     void publish_accountOnlyEvent_isKeyedByAccount() {
         BusinessEvent published = event(EventType.ACCOUNT_OPENED, null, 9L, "corr-2");
+        givenBrokerAcknowledges("account:9", published);
 
         bus.publish(published);
 
         verify(kafkaTemplate).send(TOPIC, "account:9", published);
     }
 
+    /**
+     * An event naming both a customer and an account is keyed by the account: the
+     * ordering guarantee is per account, so the account decides the partition.
+     */
     @Test
     void publish_eventNamingCustomerAndAccount_isKeyedByCustomer() {
         BusinessEvent published = event(EventType.ACCOUNT_STATUS_CHANGED, 4L, 12L, "corr-3");
+        givenBrokerAcknowledges("account:12", published);
 
         bus.publish(published);
 
-        verify(kafkaTemplate).send(TOPIC, "customer:4", published);
+        verify(kafkaTemplate).send(TOPIC, "account:12", published);
+    }
+
+    @Test
+    void publish_failsWithEventIdAndReasonWhenTheBrokerDoesNotAcknowledge() {
+        BusinessEvent published = event(EventType.ACCOUNT_OPENED, 2L, 9L, "corr-9");
+        CompletableFuture<SendResult<String, BusinessEvent>> failed = new CompletableFuture<>();
+        failed.completeExceptionally(new TimeoutException("the broker did not acknowledge the record"));
+        when(kafkaTemplate.send(TOPIC, "account:9", published)).thenReturn(failed);
+
+        assertThatThrownBy(() -> bus.publish(published))
+                .isInstanceOf(EventPublishException.class)
+                .hasMessageContaining(published.eventId())
+                .hasMessageContaining("the broker did not acknowledge the record")
+                .hasCauseInstanceOf(TimeoutException.class);
     }
 
     @Test

@@ -1,0 +1,42 @@
+# BANK-7 - one-command local Kafka for the business-event stream.
+#
+#   docker compose -f docker-compose.kafka.yml up -d
+#
+# One broker in KRaft mode: no ZooKeeper and no second service. It listens on the
+# fixed host port 9092, which is what spring.kafka.bootstrap-servers defaults to, so
+# the application needs no Kafka setting at all to talk to it.
+#
+# The application declares its own topics (banking.business-events and
+# banking.business-events.DLT, three partitions each) when it starts. Auto topic
+# creation is on as well, so a topic named by a later change works without a restart,
+# and new topics get three partitions for the same reason the declared ones have them:
+# one business key per partition, several keys in flight at once.
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: banking-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      KAFKA_CONFLUENT_SUPPORT_METRICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
