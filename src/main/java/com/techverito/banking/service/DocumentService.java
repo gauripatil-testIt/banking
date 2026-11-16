@@ -7,6 +7,8 @@ import com.techverito.banking.entity.CustomerDocument;
 import com.techverito.banking.entity.DocumentType;
 import com.techverito.banking.event.EventType;
 import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
+import com.techverito.banking.event.task.BackgroundTaskOutboxRecorder;
+import com.techverito.banking.event.task.TaskType;
 import com.techverito.banking.exception.DocumentValidationException;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerDocumentRepository;
@@ -34,19 +36,22 @@ public class DocumentService {
     private final DocumentProperties properties;
     private final DocumentDownloadRepository documentDownloadRepository;
     private final BusinessEventOutboxRecorder outboxRecorder;
+    private final BackgroundTaskOutboxRecorder backgroundTaskRecorder;
 
     public DocumentService(CustomerDocumentRepository documentRepository,
                            CustomerRepository customerRepository,
                            DocumentStorage storage,
                            DocumentProperties properties,
                            DocumentDownloadRepository documentDownloadRepository,
-                           BusinessEventOutboxRecorder outboxRecorder) {
+                           BusinessEventOutboxRecorder outboxRecorder,
+                           BackgroundTaskOutboxRecorder backgroundTaskRecorder) {
         this.documentRepository = documentRepository;
         this.customerRepository = customerRepository;
         this.storage = storage;
         this.properties = properties;
         this.documentDownloadRepository = documentDownloadRepository;
         this.outboxRecorder = outboxRecorder;
+        this.backgroundTaskRecorder = backgroundTaskRecorder;
     }
 
     public DocumentResponse upload(Long customerId, MultipartFile file, DocumentType documentType,
@@ -84,6 +89,9 @@ public class DocumentService {
             // Recorded in the same transaction as the document row, so a document that
             // is not stored announces nothing.
             outboxRecorder.record(EventType.DOCUMENT_UPLOADED, customerId, null);
+            // The scan is queued next to the event, in the same transaction, so a
+            // document that is not stored asks for no scan either.
+            backgroundTaskRecorder.submit(TaskType.DOCUMENT_SCAN, "document", saved.getId(), customerId);
             return DocumentResponse.from(saved);
         } catch (RuntimeException ex) {
             deleteStoredFile(storedFileName, ex);

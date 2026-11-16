@@ -5,6 +5,8 @@ import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.event.EventType;
 import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
+import com.techverito.banking.event.task.BackgroundTaskOutboxRecorder;
+import com.techverito.banking.event.task.TaskType;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
@@ -19,11 +21,14 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
     private final BusinessEventOutboxRecorder outboxRecorder;
+    private final BackgroundTaskOutboxRecorder backgroundTaskRecorder;
 
     public CustomerService(CustomerRepository customerRepository,
-                           BusinessEventOutboxRecorder outboxRecorder) {
+                           BusinessEventOutboxRecorder outboxRecorder,
+                           BackgroundTaskOutboxRecorder backgroundTaskRecorder) {
         this.customerRepository = customerRepository;
         this.outboxRecorder = outboxRecorder;
+        this.backgroundTaskRecorder = backgroundTaskRecorder;
     }
 
     public CustomerResponse create(CustomerRequest req) {
@@ -39,6 +44,9 @@ public class CustomerService {
         // Recorded in the same transaction as the customer, so the event is published
         // only once the registration has committed.
         outboxRecorder.record(EventType.CUSTOMER_REGISTERED, saved.getId(), null);
+        // Queued in the same transaction as the customer too, so the welcome email is
+        // submitted exactly once the registration has committed.
+        backgroundTaskRecorder.submit(TaskType.WELCOME_EMAIL, "customer", saved.getId(), saved.getId());
         return CustomerResponse.from(saved);
     }
 

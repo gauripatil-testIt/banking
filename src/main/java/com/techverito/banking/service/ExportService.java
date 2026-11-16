@@ -7,11 +7,15 @@ import com.techverito.banking.entity.DataExport;
 import com.techverito.banking.entity.ExportType;
 import com.techverito.banking.event.EventType;
 import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
+import com.techverito.banking.event.task.BackgroundTaskOutboxRecorder;
+import com.techverito.banking.event.task.TaskType;
 import com.techverito.banking.exception.ExportValidationException;
 import com.techverito.banking.repository.AccountRepository;
 import com.techverito.banking.repository.CustomerRepository;
 import com.techverito.banking.repository.DataExportRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -46,17 +50,23 @@ public class ExportService {
     private final AccountRepository accountRepository;
     private final DataExportRepository dataExportRepository;
     private final BusinessEventOutboxRecorder outboxRecorder;
+    private final BackgroundTaskOutboxRecorder backgroundTaskRecorder;
+    private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
     public ExportService(CustomerRepository customerRepository,
                          AccountRepository accountRepository,
                          DataExportRepository dataExportRepository,
                          BusinessEventOutboxRecorder outboxRecorder,
+                         BackgroundTaskOutboxRecorder backgroundTaskRecorder,
+                         PlatformTransactionManager transactionManager,
                          Clock clock) {
         this.customerRepository = customerRepository;
         this.accountRepository = accountRepository;
         this.dataExportRepository = dataExportRepository;
         this.outboxRecorder = outboxRecorder;
+        this.backgroundTaskRecorder = backgroundTaskRecorder;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.clock = clock;
     }
 
@@ -98,12 +108,25 @@ public class ExportService {
         }
         writer.flush();
 
-        dataExportRepository.save(DataExport.builder()
-                .exportedBy(plan.exportedBy())
-                .exportType(plan.type())
-                .recordCount(dataRows)
-                .exportedAt(Instant.now(clock))
-                .build());
+        long recordCount = dataRows;
+        Long exportCustomer = exportCustomerId;
+        // The audit row and the task row commit together, and write() itself still holds
+        // no transaction while the bytes stream to the client.
+        transactionTemplate.executeWithoutResult(status -> {
+            dataExportRepository.save(DataExport.builder()
+                    .exportedBy(plan.exportedBy())
+                    .exportType(plan.type())
+                    .recordCount(recordCount)
+                    .exportedAt(Instant.now(clock))
+                    .build());
+
+            // Only an export that contains a customer has a record to announce the task
+            // against; an export with no rows asks for no background work.
+            if (exportCustomer != null) {
+                backgroundTaskRecorder.submit(TaskType.DOCUMENT_EXPORT, "data_export", exportCustomer,
+                        exportCustomer);
+            }
+        });
 
         // An event has to name what it concerns and this export covers every customer,
         // so it is announced against the first customer it contains; an export with no

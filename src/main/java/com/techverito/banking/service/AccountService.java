@@ -2,11 +2,15 @@ package com.techverito.banking.service;
 
 import com.techverito.banking.dto.AccountRequest;
 import com.techverito.banking.dto.AccountResponse;
+import com.techverito.banking.dto.StatementResponse;
 import com.techverito.banking.entity.Account;
 import com.techverito.banking.entity.AccountStatus;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.event.EventType;
 import com.techverito.banking.event.outbox.BusinessEventOutboxRecorder;
+import com.techverito.banking.event.task.BackgroundTaskMessage;
+import com.techverito.banking.event.task.BackgroundTaskOutboxRecorder;
+import com.techverito.banking.event.task.TaskType;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.AccountRepository;
 import com.techverito.banking.repository.CustomerRepository;
@@ -22,12 +26,15 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final CustomerRepository customerRepository;
     private final BusinessEventOutboxRecorder outboxRecorder;
+    private final BackgroundTaskOutboxRecorder backgroundTaskRecorder;
 
     public AccountService(AccountRepository accountRepository, CustomerRepository customerRepository,
-                          BusinessEventOutboxRecorder outboxRecorder) {
+                          BusinessEventOutboxRecorder outboxRecorder,
+                          BackgroundTaskOutboxRecorder backgroundTaskRecorder) {
         this.accountRepository = accountRepository;
         this.customerRepository = customerRepository;
         this.outboxRecorder = outboxRecorder;
+        this.backgroundTaskRecorder = backgroundTaskRecorder;
     }
 
     public AccountResponse create(AccountRequest req) {
@@ -77,6 +84,18 @@ public class AccountService {
             outboxRecorder.record(EventType.ACCOUNT_STATUS_CHANGED, saved.getCustomer().getId(), saved.getId());
         }
         return AccountResponse.from(saved);
+    }
+
+    /**
+     * Asks for a statement of one account: the work itself is a background task, so the
+     * request only queues it. The task row is recorded in the same transaction as the
+     * lookup, so nothing is queued for an account that does not exist.
+     */
+    public StatementResponse requestStatement(Long accountId) {
+        Account account = findOrThrow(accountId);
+        BackgroundTaskMessage task = backgroundTaskRecorder.submit(TaskType.STATEMENT_GENERATION, "account",
+                account.getId(), account.getCustomer().getId());
+        return StatementResponse.from(account, task);
     }
 
     public void delete(Long id) {
