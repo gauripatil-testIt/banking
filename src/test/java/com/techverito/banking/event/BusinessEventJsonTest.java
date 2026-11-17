@@ -70,6 +70,22 @@ class BusinessEventJsonTest {
                         LocalDate.parse("2025-02-28"), "pdf"));
     }
 
+    private static BusinessEvent<WelcomeEmailRequestedPayload> welcomeEmailRequested() {
+        return envelope(BusinessEventType.WELCOME_EMAIL_REQUESTED, SubjectType.CUSTOMER, 1L,
+                new WelcomeEmailRequestedPayload(1L, "john@example.com", "ops.user"));
+    }
+
+    private static BusinessEvent<StatementRequestedPayload> statementRequested() {
+        return envelope(BusinessEventType.STATEMENT_REQUESTED, SubjectType.ACCOUNT, 10L,
+                new StatementRequestedPayload(10L, LocalDate.parse("2025-02-01"), LocalDate.parse("2025-02-28"),
+                        "ops.user"));
+    }
+
+    private static BusinessEvent<DocumentScanRequestedPayload> documentScanRequested() {
+        return envelope(BusinessEventType.DOCUMENT_SCAN_REQUESTED, SubjectType.CUSTOMER, 1L,
+                new DocumentScanRequestedPayload(7L, 1L, "sample-valid.pdf"));
+    }
+
     private <T extends EventPayload> BusinessEvent<T> roundTrip(BusinessEvent<T> event, Class<T> payloadType) {
         return json.fromJson(json.toJson(event), payloadType);
     }
@@ -113,6 +129,30 @@ class BusinessEventJsonTest {
         assertThat(generated.type()).isEqualTo("statement.generated");
         assertThat(generated.subjectType()).isEqualTo(SubjectType.ACCOUNT);
         assertThat(generated.payload()).isEqualTo(statementGenerated().payload());
+
+        BusinessEvent<WelcomeEmailRequestedPayload> welcomeEmail = roundTrip(welcomeEmailRequested(),
+                WelcomeEmailRequestedPayload.class);
+        assertThat(welcomeEmail.type()).isEqualTo("welcome.email.requested");
+        assertThat(welcomeEmail.version()).isEqualTo(1);
+        assertThat(welcomeEmail.subjectType()).isEqualTo(SubjectType.CUSTOMER);
+        assertThat(welcomeEmail.subjectId()).isEqualTo(1L);
+        assertThat(welcomeEmail.correlationId()).isEqualTo(CORRELATION_ID);
+        assertThat(welcomeEmail.payload()).isEqualTo(welcomeEmailRequested().payload());
+
+        BusinessEvent<StatementRequestedPayload> statement = roundTrip(statementRequested(),
+                StatementRequestedPayload.class);
+        assertThat(statement.type()).isEqualTo("statement.requested");
+        assertThat(statement.version()).isEqualTo(1);
+        assertThat(statement.subjectType()).isEqualTo(SubjectType.ACCOUNT);
+        assertThat(statement.subjectId()).isEqualTo(10L);
+        assertThat(statement.payload()).isEqualTo(statementRequested().payload());
+
+        BusinessEvent<DocumentScanRequestedPayload> scan = roundTrip(documentScanRequested(),
+                DocumentScanRequestedPayload.class);
+        assertThat(scan.type()).isEqualTo("document.scan.requested");
+        assertThat(scan.version()).isEqualTo(1);
+        assertThat(scan.subjectType()).isEqualTo(SubjectType.CUSTOMER);
+        assertThat(scan.payload()).isEqualTo(documentScanRequested().payload());
     }
 
     @Test

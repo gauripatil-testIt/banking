@@ -49,6 +49,10 @@ class BusinessEventFactoryTest {
                     "banking-export-2025-03-04-0907.csv");
             case STATEMENT_GENERATED -> new StatementGeneratedPayload(3L, 10L, LocalDate.parse("2025-02-01"),
                     LocalDate.parse("2025-02-28"), "pdf");
+            case WELCOME_EMAIL_REQUESTED -> new WelcomeEmailRequestedPayload(1L, "john@example.com", "ops.user");
+            case STATEMENT_REQUESTED -> new StatementRequestedPayload(10L, LocalDate.parse("2025-02-01"),
+                    LocalDate.parse("2025-02-28"), "ops.user");
+            case DOCUMENT_SCAN_REQUESTED -> new DocumentScanRequestedPayload(7L, 1L, "sample-valid.pdf");
         };
     }
 

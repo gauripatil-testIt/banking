@@ -19,7 +19,10 @@ public enum BusinessEventType {
     ACCOUNT_STATUS_CHANGED("account.status.changed", 1),
     DOCUMENT_UPLOADED("document.uploaded", 1),
     EXPORT_REQUESTED("export.requested", 1),
-    STATEMENT_GENERATED("statement.generated", 1);
+    STATEMENT_GENERATED("statement.generated", 1),
+    WELCOME_EMAIL_REQUESTED("welcome.email.requested", 1),
+    STATEMENT_REQUESTED("statement.requested", 1),
+    DOCUMENT_SCAN_REQUESTED("document.scan.requested", 1);
 
     private final String wireValue;
     private final int currentVersion;

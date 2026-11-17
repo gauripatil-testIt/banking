@@ -1,6 +1,7 @@
 package com.techverito.banking.service;
 
 import com.techverito.banking.dto.PreparedExport;
+import com.techverito.banking.dto.TaskAcceptedResponse;
 import com.techverito.banking.entity.Account;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.DataExport;
@@ -42,15 +43,18 @@ public class ExportService {
     private final CustomerRepository customerRepository;
     private final AccountRepository accountRepository;
     private final DataExportRepository dataExportRepository;
+    private final TaskSubmissionService taskSubmissionService;
     private final Clock clock;
 
     public ExportService(CustomerRepository customerRepository,
                          AccountRepository accountRepository,
                          DataExportRepository dataExportRepository,
+                         TaskSubmissionService taskSubmissionService,
                          Clock clock) {
         this.customerRepository = customerRepository;
         this.accountRepository = accountRepository;
         this.dataExportRepository = dataExportRepository;
+        this.taskSubmissionService = taskSubmissionService;
         this.clock = clock;
     }
 
@@ -59,12 +63,28 @@ public class ExportService {
      */
     public PreparedExport prepare(String rawType, String exportedBy) {
         ExportType type = parseType(rawType);
+        requireExportedBy(exportedBy);
+        String fileName = "banking-export-" + FILE_TIMESTAMP.format(Instant.now(clock)) + ".csv";
+        return new PreparedExport(type, exportedBy, fileName);
+    }
+
+    /**
+     * Accepts the export as background work instead of producing it in the request: the CSV
+     * itself is written by a background worker (BANK-11), so the caller is answered with the
+     * task id to poll. Validation is the same as {@link #prepare(String, String)}, so a bad
+     * request is still a 400 and never leaves a task behind.
+     */
+    public TaskAcceptedResponse requestExport(String rawType, String exportedBy, String correlationId) {
+        ExportType type = parseType(rawType);
+        requireExportedBy(exportedBy);
+        return taskSubmissionService.submitDocumentExport(type, exportedBy, correlationId);
+    }
+
+    private void requireExportedBy(String exportedBy) {
         if (exportedBy == null || exportedBy.isBlank()) {
             throw new ExportValidationException(
                     "The name of the user running the export (exportedBy) is required.");
         }
-        String fileName = "banking-export-" + FILE_TIMESTAMP.format(Instant.now(clock)) + ".csv";
-        return new PreparedExport(type, exportedBy, fileName);
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.techverito.banking.service;
 
 import com.techverito.banking.dto.PreparedExport;
+import com.techverito.banking.dto.TaskAcceptedResponse;
 import com.techverito.banking.entity.Account;
 import com.techverito.banking.entity.AccountStatus;
 import com.techverito.banking.entity.AccountType;
@@ -33,6 +34,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,6 +43,8 @@ import static org.mockito.Mockito.when;
 class ExportServiceTest {
 
     private static final Instant NOW = Instant.parse("2025-03-04T09:07:45Z");
+
+    private static final String CORRELATION_ID = "corr-2025-03-04-0001";
 
     @Mock
     CustomerRepository customerRepository;
@@ -50,12 +55,15 @@ class ExportServiceTest {
     @Mock
     DataExportRepository dataExportRepository;
 
+    @Mock
+    TaskSubmissionService taskSubmissionService;
+
     private ExportService exportService;
 
     @BeforeEach
     void setUp() {
         exportService = new ExportService(customerRepository, accountRepository, dataExportRepository,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                taskSubmissionService, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private Customer customer(Long id, String firstName, String lastName, String email,
@@ -276,6 +284,32 @@ class ExportServiceTest {
         DataExport audit = savedAuditRow();
         assertThat(audit.getExportType()).isEqualTo(ExportType.BOTH);
         assertThat(audit.getRecordCount()).isEqualTo(3L);
+    }
+
+    @Test
+    void requestExport_validRequest_queuesOneDocumentExportTask() {
+        when(taskSubmissionService.submitDocumentExport(ExportType.CUSTOMERS, "ops.user", CORRELATION_ID))
+                .thenReturn(new TaskAcceptedResponse(7L, "DOCUMENT_EXPORT", "PENDING"));
+
+        TaskAcceptedResponse accepted = exportService.requestExport("customers", "ops.user", CORRELATION_ID);
+
+        assertThat(accepted.taskId()).isEqualTo(7L);
+        assertThat(accepted.taskType()).isEqualTo("DOCUMENT_EXPORT");
+        assertThat(accepted.status()).isEqualTo("PENDING");
+        verify(taskSubmissionService).submitDocumentExport(ExportType.CUSTOMERS, "ops.user", CORRELATION_ID);
+    }
+
+    @Test
+    void requestExport_unknownTypeOrBlankExportedBy_isRejectedAndQueuesNothing() {
+        assertThatThrownBy(() -> exportService.requestExport("invoices", "ops.user", CORRELATION_ID))
+                .isInstanceOf(ExportValidationException.class)
+                .hasMessageContaining("invoices");
+
+        assertThatThrownBy(() -> exportService.requestExport("customers", "   ", CORRELATION_ID))
+                .isInstanceOf(ExportValidationException.class)
+                .hasMessageContaining("exportedBy");
+
+        verify(taskSubmissionService, never()).submitDocumentExport(any(), any(), any());
     }
 
     @Test

@@ -27,6 +27,9 @@ class CustomerServiceTest {
     @Mock
     CustomerRepository customerRepository;
 
+    @Mock
+    TaskSubmissionService taskSubmissionService;
+
     @InjectMocks
     CustomerService customerService;
 
@@ -52,6 +55,16 @@ class CustomerServiceTest {
         assertThat(res.firstName()).isEqualTo("John");
         assertThat(res.status()).isEqualTo(CustomerStatus.ACTIVE);
         verify(customerRepository).save(any(Customer.class));
+    }
+
+    @Test
+    void create_submitsOneWelcomeEmailTaskForTheNewCustomer() {
+        when(customerRepository.save(any())).thenReturn(customer(1L));
+
+        customerService.create(request());
+
+        verify(taskSubmissionService).submitWelcomeEmail(eq(1L), eq("john@example.com"), eq("system"),
+                anyString());
     }
 
     @Test

@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 @Transactional
@@ -31,17 +32,20 @@ public class DocumentService {
     private final DocumentStorage storage;
     private final DocumentProperties properties;
     private final DocumentDownloadRepository documentDownloadRepository;
+    private final TaskSubmissionService taskSubmissionService;
 
     public DocumentService(CustomerDocumentRepository documentRepository,
                            CustomerRepository customerRepository,
                            DocumentStorage storage,
                            DocumentProperties properties,
-                           DocumentDownloadRepository documentDownloadRepository) {
+                           DocumentDownloadRepository documentDownloadRepository,
+                           TaskSubmissionService taskSubmissionService) {
         this.documentRepository = documentRepository;
         this.customerRepository = customerRepository;
         this.storage = storage;
         this.properties = properties;
         this.documentDownloadRepository = documentDownloadRepository;
+        this.taskSubmissionService = taskSubmissionService;
     }
 
     public DocumentResponse upload(Long customerId, MultipartFile file, DocumentType documentType,
@@ -75,7 +79,12 @@ public class DocumentService {
                     .uploadedBy(uploadedBy)
                     .uploadedAt(Instant.now())
                     .build();
-            return DocumentResponse.from(documentRepository.save(document));
+            CustomerDocument saved = documentRepository.save(document);
+            // The malware scan is slow work: it is queued in this same transaction, so an
+            // upload that was rejected or rolled back never gets a scan queued for it.
+            taskSubmissionService.submitDocumentScan(customerId, saved.getId(), originalFileName, uploadedBy,
+                    UUID.randomUUID().toString());
+            return DocumentResponse.from(saved);
         } catch (RuntimeException ex) {
             deleteStoredFile(storedFileName, ex);
             throw ex;

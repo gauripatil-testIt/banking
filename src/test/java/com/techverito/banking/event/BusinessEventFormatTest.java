@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The wire contract of a business event: the six documented types, the envelope
+ * The wire contract of a business event: the nine documented types, the envelope
  * invariants and one fully populated envelope per payload type.
  */
 class BusinessEventFormatTest {
@@ -36,7 +36,10 @@ class BusinessEventFormatTest {
             BusinessEventType.ACCOUNT_STATUS_CHANGED, "account.status.changed",
             BusinessEventType.DOCUMENT_UPLOADED, "document.uploaded",
             BusinessEventType.EXPORT_REQUESTED, "export.requested",
-            BusinessEventType.STATEMENT_GENERATED, "statement.generated");
+            BusinessEventType.STATEMENT_GENERATED, "statement.generated",
+            BusinessEventType.WELCOME_EMAIL_REQUESTED, "welcome.email.requested",
+            BusinessEventType.STATEMENT_REQUESTED, "statement.requested",
+            BusinessEventType.DOCUMENT_SCAN_REQUESTED, "document.scan.requested");
 
     private static CustomerRegisteredPayload customerRegisteredPayload() {
         return new CustomerRegisteredPayload(1L, "John", "Doe", "john@example.com");
@@ -63,6 +66,19 @@ class BusinessEventFormatTest {
                 "pdf");
     }
 
+    private static WelcomeEmailRequestedPayload welcomeEmailRequestedPayload() {
+        return new WelcomeEmailRequestedPayload(1L, "john@example.com", "ops.user");
+    }
+
+    private static StatementRequestedPayload statementRequestedPayload() {
+        return new StatementRequestedPayload(10L, LocalDate.parse("2025-02-01"), LocalDate.parse("2025-02-28"),
+                "ops.user");
+    }
+
+    private static DocumentScanRequestedPayload documentScanRequestedPayload() {
+        return new DocumentScanRequestedPayload(7L, 1L, "sample-valid.pdf");
+    }
+
     private static BusinessEvent<CustomerRegisteredPayload> validEnvelope() {
         return new BusinessEvent<>(EVENT_ID, BusinessEventType.CUSTOMER_REGISTERED.getWireValue(),
                 BusinessEventType.CUSTOMER_REGISTERED.getCurrentVersion(), OCCURRED_AT, SubjectType.CUSTOMER, 1L,
@@ -83,9 +99,9 @@ class BusinessEventFormatTest {
     }
 
     @Test
-    void sixEventTypesUseTheirDocumentedWireValuesAndVersionOne() {
-        assertThat(BusinessEventType.values()).hasSize(6);
-        assertThat(DOCUMENTED_WIRE_VALUES).hasSize(6);
+    void nineEventTypesUseTheirDocumentedWireValuesAndVersionOne() {
+        assertThat(BusinessEventType.values()).hasSize(9);
+        assertThat(DOCUMENTED_WIRE_VALUES).hasSize(9);
 
         for (BusinessEventType type : BusinessEventType.values()) {
             assertThat(type.getWireValue()).isEqualTo(DOCUMENTED_WIRE_VALUES.get(type));
@@ -203,6 +219,44 @@ class BusinessEventFormatTest {
                 LocalDate.parse("2025-02-28"), "pdf"))
                 .isInstanceOf(BusinessEventValidationException.class)
                 .hasMessageContaining("account id");
+
+        assertThatThrownBy(() -> new WelcomeEmailRequestedPayload(null, "john@example.com", "ops.user"))
+                .isInstanceOf(BusinessEventValidationException.class)
+                .hasMessageContaining("customer id");
+        assertThatThrownBy(() -> new WelcomeEmailRequestedPayload(1L, " ", "ops.user"))
+                .isInstanceOf(BusinessEventValidationException.class)
+                .hasMessageContaining("email");
+        assertThatThrownBy(() -> new WelcomeEmailRequestedPayload(1L, "john@example.com", " "))
+                .isInstanceOf(BusinessEventValidationException.class)
+                .hasMessageContaining("requestedBy");
+
+        assertThatThrownBy(() -> new DocumentScanRequestedPayload(null, 1L, "sample-valid.pdf"))
+                .isInstanceOf(BusinessEventValidationException.class)
+                .hasMessageContaining("document id");
+        assertThatThrownBy(() -> new DocumentScanRequestedPayload(7L, null, "sample-valid.pdf"))
+                .isInstanceOf(BusinessEventValidationException.class)
+                .hasMessageContaining("customer id");
+
+        assertThatThrownBy(() -> new StatementRequestedPayload(null, LocalDate.parse("2025-02-01"),
+                LocalDate.parse("2025-02-28"), "ops.user"))
+                .isInstanceOf(BusinessEventValidationException.class)
+                .hasMessageContaining("account id");
+        assertThatThrownBy(() -> new StatementRequestedPayload(10L, null, LocalDate.parse("2025-02-28"),
+                "ops.user"))
+                .isInstanceOf(BusinessEventValidationException.class)
+                .hasMessageContaining("periodStart");
+        assertThatThrownBy(() -> new StatementRequestedPayload(10L, LocalDate.parse("2025-02-01"), null,
+                "ops.user"))
+                .isInstanceOf(BusinessEventValidationException.class)
+                .hasMessageContaining("periodEnd");
+        assertThatThrownBy(() -> new StatementRequestedPayload(10L, LocalDate.parse("2025-02-01"),
+                LocalDate.parse("2025-02-28"), " "))
+                .isInstanceOf(BusinessEventValidationException.class)
+                .hasMessageContaining("requestedBy");
+        assertThatThrownBy(() -> new StatementRequestedPayload(10L, LocalDate.parse("2025-02-28"),
+                LocalDate.parse("2025-02-01"), "ops.user"))
+                .isInstanceOf(BusinessEventValidationException.class)
+                .hasMessageContaining("periodEnd");
     }
 
     @Test
@@ -255,5 +309,23 @@ class BusinessEventFormatTest {
         assertThat(statementGenerated.payload().periodStart()).isEqualTo(LocalDate.parse("2025-02-01"));
         assertThat(statementGenerated.payload().periodEnd()).isEqualTo(LocalDate.parse("2025-02-28"));
         assertThat(statementGenerated.payload().format()).isEqualTo("pdf");
+
+        BusinessEvent<WelcomeEmailRequestedPayload> welcomeEmailRequested = new BusinessEvent<>(EVENT_ID,
+                BusinessEventType.WELCOME_EMAIL_REQUESTED.getWireValue(), 1, OCCURRED_AT, SubjectType.CUSTOMER, 1L,
+                CAUSED_BY, CORRELATION_ID, welcomeEmailRequestedPayload());
+        assertEnvelope(welcomeEmailRequested, BusinessEventType.WELCOME_EMAIL_REQUESTED, SubjectType.CUSTOMER, 1L);
+        assertThat(welcomeEmailRequested.payload()).isEqualTo(welcomeEmailRequestedPayload());
+
+        BusinessEvent<StatementRequestedPayload> statementRequested = new BusinessEvent<>(EVENT_ID,
+                BusinessEventType.STATEMENT_REQUESTED.getWireValue(), 1, OCCURRED_AT, SubjectType.ACCOUNT, 10L,
+                CAUSED_BY, CORRELATION_ID, statementRequestedPayload());
+        assertEnvelope(statementRequested, BusinessEventType.STATEMENT_REQUESTED, SubjectType.ACCOUNT, 10L);
+        assertThat(statementRequested.payload()).isEqualTo(statementRequestedPayload());
+
+        BusinessEvent<DocumentScanRequestedPayload> documentScanRequested = new BusinessEvent<>(EVENT_ID,
+                BusinessEventType.DOCUMENT_SCAN_REQUESTED.getWireValue(), 1, OCCURRED_AT, SubjectType.CUSTOMER, 1L,
+                CAUSED_BY, CORRELATION_ID, documentScanRequestedPayload());
+        assertEnvelope(documentScanRequested, BusinessEventType.DOCUMENT_SCAN_REQUESTED, SubjectType.CUSTOMER, 1L);
+        assertThat(documentScanRequested.payload()).isEqualTo(documentScanRequestedPayload());
     }
 }

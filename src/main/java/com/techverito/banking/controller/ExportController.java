@@ -1,31 +1,28 @@
 package com.techverito.banking.controller;
 
-import com.techverito.banking.dto.PreparedExport;
+import com.techverito.banking.dto.TaskAcceptedResponse;
 import com.techverito.banking.service.ExportService;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.nio.charset.StandardCharsets;
+import java.net.URI;
+import java.util.UUID;
 
 /**
  * The CSV export: {@code GET /exports?type=customers|accounts|both&exportedBy=<name>}.
  *
- * <p>The request is validated by {@link ExportService#prepare(String, String)} before the
- * streaming body is built, so an unknown type or a missing uploader is still answered with
- * the application's usual 400 ProblemDetail instead of a half written file.</p>
+ * <p>The export is slow work, so nothing is streamed here any more: the request is
+ * validated by {@link ExportService#requestExport(String, String, String)} and queued for a
+ * background worker, and the caller gets {@code 202 Accepted} with the task id to poll on
+ * {@code GET /tasks/{taskId}}. An unknown type or a missing uploader is still answered with
+ * the application's usual 400 ProblemDetail, and leaves no task behind.</p>
  */
 @RestController
 @RequestMapping("/exports")
 public class ExportController {
-
-    private static final MediaType CSV_UTF8 = new MediaType("text", "csv", StandardCharsets.UTF_8);
 
     private final ExportService exportService;
 
@@ -34,16 +31,12 @@ public class ExportController {
     }
 
     @GetMapping
-    public ResponseEntity<StreamingResponseBody> export(@RequestParam("type") String type,
-                                                        @RequestParam("exportedBy") String exportedBy) {
-        PreparedExport plan = exportService.prepare(type, exportedBy);
-        StreamingResponseBody body = outputStream -> exportService.write(plan, outputStream);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                        .filename(plan.fileName(), StandardCharsets.UTF_8)
-                        .build()
-                        .toString())
-                .contentType(CSV_UTF8)
-                .body(body);
+    public ResponseEntity<TaskAcceptedResponse> export(@RequestParam("type") String type,
+                                                       @RequestParam("exportedBy") String exportedBy) {
+        TaskAcceptedResponse accepted = exportService.requestExport(type, exportedBy,
+                UUID.randomUUID().toString());
+        return ResponseEntity.accepted()
+                .location(URI.create("/tasks/" + accepted.taskId()))
+                .body(accepted);
     }
 }

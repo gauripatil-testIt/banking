@@ -56,6 +56,9 @@ class DocumentServiceTest {
     @Mock
     DocumentDownloadRepository documentDownloadRepository;
 
+    @Mock
+    TaskSubmissionService taskSubmissionService;
+
     private DocumentService documentService;
 
     @BeforeEach
@@ -66,7 +69,7 @@ class DocumentServiceTest {
                 DataSize.ofMegabytes(10),
                 StorageType.LOCAL);
         documentService = new DocumentService(documentRepository, customerRepository, storage, properties,
-                documentDownloadRepository);
+                documentDownloadRepository, taskSubmissionService);
     }
 
     private Customer customer(Long id) {
@@ -138,6 +141,31 @@ class DocumentServiceTest {
         assertThat(persisted.getUploadedAt()).isNotNull();
         assertThat(persisted.getStoredFileName()).isEqualTo("stored-1.pdf");
         assertThat(persisted.getOriginalFileName()).isEqualTo("kyc proof (final) [übersicht].pdf");
+    }
+
+    @Test
+    void upload_submitsOneDocumentScanTaskForTheStoredDocument() {
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer(1L)));
+        when(storage.store(any(), any(), eq(1L))).thenReturn("stored-scan.pdf");
+        when(documentRepository.save(any(CustomerDocument.class)))
+                .thenAnswer(invocation -> withId(invocation.getArgument(0), 9L));
+
+        documentService.upload(1L, pdf("proof.pdf"), DocumentType.ID_PROOF, "ops.user", null);
+
+        verify(taskSubmissionService).submitDocumentScan(eq(1L), eq(9L), eq("proof.pdf"), eq("ops.user"),
+                anyString());
+    }
+
+    @Test
+    void upload_rejectedFile_submitsNoDocumentScanTask() {
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer(1L)));
+        MultipartFile wrongType = new MockMultipartFile("file", "notes.txt", "text/plain",
+                "hello".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> documentService.upload(1L, wrongType, DocumentType.ID_PROOF, "ops.user", null))
+                .isInstanceOf(DocumentValidationException.class);
+
+        verify(taskSubmissionService, never()).submitDocumentScan(any(), any(), any(), any(), any());
     }
 
     @Test

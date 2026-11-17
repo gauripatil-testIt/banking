@@ -15,6 +15,7 @@ import com.techverito.banking.repository.CustomerRepository;
 import com.techverito.banking.repository.DocumentDownloadRepository;
 import com.techverito.banking.service.DocumentDownloadService;
 import com.techverito.banking.service.DocumentService;
+import com.techverito.banking.service.TaskSubmissionService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -232,7 +233,7 @@ class S3DocumentStorageLocalStackTest {
         when(documentRepository.findById(11L)).thenReturn(Optional.of(stored));
 
         DocumentService documentService = new DocumentService(documentRepository, mock(CustomerRepository.class),
-                storage, documentProperties(), downloadRepository);
+                storage, documentProperties(), downloadRepository, mock(TaskSubmissionService.class));
 
         documentService.delete(existingCustomer.getId(), 11L);
 

@@ -10,15 +10,25 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Transactional
 public class CustomerService {
 
-    private final CustomerRepository customerRepository;
+    /**
+     * BANK-8 has no authentication, so a customer registered through the API is announced
+     * with this cause: it is not a named operator who asked for the welcome email.
+     */
+    private static final String REQUESTED_BY_SYSTEM = "system";
 
-    public CustomerService(CustomerRepository customerRepository) {
+    private final CustomerRepository customerRepository;
+    private final TaskSubmissionService taskSubmissionService;
+
+    public CustomerService(CustomerRepository customerRepository,
+                           TaskSubmissionService taskSubmissionService) {
         this.customerRepository = customerRepository;
+        this.taskSubmissionService = taskSubmissionService;
     }
 
     public CustomerResponse create(CustomerRequest req) {
@@ -30,7 +40,12 @@ public class CustomerService {
                 .status(req.status())
                 .createdAt(Instant.now())
                 .build();
-        return CustomerResponse.from(customerRepository.save(customer));
+        Customer saved = customerRepository.save(customer);
+        // The welcome email is slow work: it is queued in this same transaction, so a
+        // customer that was not created never gets an email queued for it.
+        taskSubmissionService.submitWelcomeEmail(saved.getId(), saved.getEmail(), REQUESTED_BY_SYSTEM,
+                UUID.randomUUID().toString());
+        return CustomerResponse.from(saved);
     }
 
     @Transactional(readOnly = true)

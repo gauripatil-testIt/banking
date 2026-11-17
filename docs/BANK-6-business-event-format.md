@@ -5,7 +5,7 @@ codec (`BusinessEventJson`), published through one interface (`BusinessEventBus`
 through the same interface. Reporting, audit and notifications can therefore plug in without each
 team inventing its own integration.
 
-This page documents the format field by field, the six event types and their payloads, one complete
+This page documents the format field by field, the nine event types and their payloads, one complete
 example, the compatibility rules that keep existing consumers working, and the configuration that
 chooses the implementation.
 
@@ -35,7 +35,7 @@ a `version` that is null or below 1, a null `occurredAt`, a null `subjectType` o
 and no code path can emit an event without a correlation id.
 
 Payloads are the records behind the sealed marker `EventPayload`; that interface permits exactly the
-six payloads in section 2 and nothing else. The envelope is immutable (a record, no setters).
+nine payloads in section 2 and nothing else. The envelope is immutable (a record, no setters).
 
 ### Producing an event
 
@@ -54,22 +54,29 @@ parts an announcer must not choose:
 
 ## 2. Event types and payloads
 
-`com.techverito.banking.event.BusinessEventType` declares exactly six types. Each carries a
+`com.techverito.banking.event.BusinessEventType` declares exactly nine types. Each carries a
 lower-case dotted **wire value** – the string that appears in the JSON `type` field – and a current
 version:
 
-| Enum constant             | Wire value (`type`)       | Version | Payload record                |
-| ------------------------- | ------------------------- | ------- | ----------------------------- |
-| `CUSTOMER_REGISTERED`     | `customer.registered`     | 1       | `CustomerRegisteredPayload`    |
-| `ACCOUNT_OPENED`          | `account.opened`          | 1       | `AccountOpenedPayload`         |
-| `ACCOUNT_STATUS_CHANGED`  | `account.status.changed`  | 1       | `AccountStatusChangedPayload`  |
-| `DOCUMENT_UPLOADED`       | `document.uploaded`       | 1       | `DocumentUploadedPayload`      |
-| `EXPORT_REQUESTED`        | `export.requested`        | 1       | `ExportRequestedPayload`       |
-| `STATEMENT_GENERATED`     | `statement.generated`     | 1       | `StatementGeneratedPayload`    |
+| Enum constant               | Wire value (`type`)       | Version | Payload record                  |
+| --------------------------- | ------------------------- | ------- | ------------------------------- |
+| `CUSTOMER_REGISTERED`       | `customer.registered`     | 1       | `CustomerRegisteredPayload`     |
+| `ACCOUNT_OPENED`            | `account.opened`          | 1       | `AccountOpenedPayload`          |
+| `ACCOUNT_STATUS_CHANGED`    | `account.status.changed`  | 1       | `AccountStatusChangedPayload`   |
+| `DOCUMENT_UPLOADED`         | `document.uploaded`       | 1       | `DocumentUploadedPayload`       |
+| `EXPORT_REQUESTED`          | `export.requested`        | 1       | `ExportRequestedPayload`        |
+| `STATEMENT_GENERATED`       | `statement.generated`     | 1       | `StatementGeneratedPayload`     |
+| `WELCOME_EMAIL_REQUESTED`   | `welcome.email.requested` | 1       | `WelcomeEmailRequestedPayload`  |
+| `STATEMENT_REQUESTED`       | `statement.requested`     | 1       | `StatementRequestedPayload`     |
+| `DOCUMENT_SCAN_REQUESTED`   | `document.scan.requested` | 1       | `DocumentScanRequestedPayload`  |
 
 `BusinessEventType.fromWireValue(String)` looks a wire value up, is null-safe and returns an empty
 `Optional` for an unknown value. `getCurrentVersion()` returns the version emitted for **new** events
-of that type; it is `1` for all six today.
+of that type; it is `1` for all nine today.
+
+The last three types are the task-submission events: they name work that is handed to a background
+worker rather than a change that has already happened, so `STATEMENT_REQUESTED` exists alongside
+`STATEMENT_GENERATED` and a scan request alongside `DOCUMENT_UPLOADED`.
 
 ### Payload fields
 
@@ -84,6 +91,9 @@ Each payload reuses the existing domain enums (`AccountType`, `AccountStatus`, `
 | `DocumentUploadedPayload`     | `documentId` (`Long`), `customerId` (`Long`), `documentType` (`DocumentType`), `originalFileName` (`String`), `sizeBytes` (`long`), `uploadedBy` (`String`) | null `documentId`, null `documentType` |
 | `ExportRequestedPayload`      | `exportType` (`ExportType`), `exportedBy` (`String`), `fileName` (`String`)                                 | null `exportType`, blank `exportedBy` |
 | `StatementGeneratedPayload`   | `statementId` (`Long`), `accountId` (`Long`), `periodStart` (`LocalDate`), `periodEnd` (`LocalDate`), `format` (`String`) | null `statementId`, null `accountId` |
+| `WelcomeEmailRequestedPayload` | `customerId` (`Long`), `email` (`String`), `requestedBy` (`String`)                                       | null `customerId`, blank `email`, blank `requestedBy` |
+| `StatementRequestedPayload`   | `accountId` (`Long`), `periodStart` (`LocalDate`), `periodEnd` (`LocalDate`), `requestedBy` (`String`)     | null `accountId`, null `periodStart`, null `periodEnd`, blank `requestedBy`, `periodStart` after `periodEnd` |
+| `DocumentScanRequestedPayload` | `documentId` (`Long`), `customerId` (`Long`), `originalFileName` (`String`)                               | null `documentId`, null `customerId` |
 
 A rejected payload also throws `BusinessEventValidationException`, naming the missing field, so an
 announcement without its identifying id is impossible.
@@ -202,7 +212,7 @@ for a broker, which would also isolate one bad consumer.
 
 ## 6. Scope of this story, and what comes next
 
-BANK-6 delivers the **format**, the six **event types** and their payloads, the **one
+BANK-6 delivers the **format**, the **event types** and their payloads, the **one
 publishing/subscribing interface** (`BusinessEventBus`, `BusinessEventHandler`, `EventSubscription`),
 the **event factory**, the **JSON codec**, the **in-memory bus**, the **Spring Kafka producer
 adapter** and the configuration selection above. The doc you are reading is part of that delivery.
@@ -224,6 +234,16 @@ Not in this story:
 * **Persistence of events.** No table, no migration: the event model is the envelope plus JSON.
 * **Other brokers.** No RabbitMQ/AMQP adapter, and no schema registry, Avro or Protobuf.
 
+### Added after BANK-6
+
+BANK-8 added the three task-submission types – `welcome.email.requested`, `statement.requested` and
+`document.scan.requested` – with their payloads, so a background task can be announced in this same
+envelope, plus a RabbitMQ task-queue producer alongside the Kafka bus. It also started submitting
+those tasks from the existing customer-creation and document-upload flows and added a statement
+*submission* endpoint (`POST /accounts/{accountId}/statements`) that queues the request. The envelope,
+the codec, the factory and the bus implementations described above are unchanged by that addition,
+and no statement is generated or stored: it is still only a request.
+
 ---
 
 ## Sign-off
@@ -231,7 +251,7 @@ Not in this story:
 | # | Check                                                                       | Result |
 | - | --------------------------------------------------------------------------- | ------ |
 | 1 | Every envelope field documented with its Java type and marked required      | ☐      |
-| 2 | Six event types listed with exact wire values, version 1 and payload fields  | ☐      |
+| 2 | Nine event types listed with exact wire values, version 1 and payload fields | ☐      |
 | 3 | One complete example whose field names and `type` value match the codec      | ☐      |
 | 4 | Compatible-change and new-version rules stated                              | ☐      |
 | 5 | Configuration properties, defaults and in-memory-only warning stated        | ☐      |

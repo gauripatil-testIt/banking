@@ -10,5 +10,6 @@ package com.techverito.banking.event;
  */
 public sealed interface EventPayload permits CustomerRegisteredPayload, AccountOpenedPayload,
         AccountStatusChangedPayload, DocumentUploadedPayload, ExportRequestedPayload,
-        StatementGeneratedPayload {
+        StatementGeneratedPayload, WelcomeEmailRequestedPayload, StatementRequestedPayload,
+        DocumentScanRequestedPayload {
 }
