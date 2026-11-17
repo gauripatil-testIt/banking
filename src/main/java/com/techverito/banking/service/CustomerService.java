@@ -3,6 +3,10 @@ package com.techverito.banking.service;
 import com.techverito.banking.dto.CustomerRequest;
 import com.techverito.banking.dto.CustomerResponse;
 import com.techverito.banking.entity.Customer;
+import com.techverito.banking.event.BusinessEventOutbox;
+import com.techverito.banking.event.BusinessEventType;
+import com.techverito.banking.event.CustomerRegisteredPayload;
+import com.techverito.banking.event.SubjectType;
 import com.techverito.banking.exception.ResourceNotFoundException;
 import com.techverito.banking.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
@@ -10,15 +14,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Transactional
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final BusinessEventOutbox businessEventOutbox;
 
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(CustomerRepository customerRepository, BusinessEventOutbox businessEventOutbox) {
         this.customerRepository = customerRepository;
+        this.businessEventOutbox = businessEventOutbox;
     }
 
     public CustomerResponse create(CustomerRequest req) {
@@ -30,7 +37,12 @@ public class CustomerService {
                 .status(req.status())
                 .createdAt(Instant.now())
                 .build();
-        return CustomerResponse.from(customerRepository.save(customer));
+        Customer saved = customerRepository.save(customer);
+        businessEventOutbox.record(BusinessEventType.CUSTOMER_REGISTERED, SubjectType.CUSTOMER, saved.getId(),
+                BusinessEventOutbox.SYSTEM_CAUSE, UUID.randomUUID().toString(),
+                new CustomerRegisteredPayload(saved.getId(), saved.getFirstName(), saved.getLastName(),
+                        saved.getEmail()));
+        return CustomerResponse.from(saved);
     }
 
     @Transactional(readOnly = true)

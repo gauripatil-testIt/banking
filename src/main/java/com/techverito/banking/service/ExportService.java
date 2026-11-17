@@ -5,11 +5,16 @@ import com.techverito.banking.entity.Account;
 import com.techverito.banking.entity.Customer;
 import com.techverito.banking.entity.DataExport;
 import com.techverito.banking.entity.ExportType;
+import com.techverito.banking.event.BusinessEventOutbox;
+import com.techverito.banking.event.BusinessEventType;
+import com.techverito.banking.event.ExportRequestedPayload;
+import com.techverito.banking.event.SubjectType;
 import com.techverito.banking.exception.ExportValidationException;
 import com.techverito.banking.repository.AccountRepository;
 import com.techverito.banking.repository.CustomerRepository;
 import com.techverito.banking.repository.DataExportRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -23,15 +28,16 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * Builds the customer/account CSV export and records one audit row per export.
  *
  * <p>The request is validated in {@link #prepare(String, String)}, before anything
  * is streamed, so a rejected export produces neither a partial file nor an audit
- * row. {@link #write(PreparedExport, OutputStream)} reads the data per call and
- * holds no transaction while bytes go to the client, so a large export does not
- * occupy a database connection or an application lock.</p>
+ * row. {@link #write(PreparedExport, OutputStream)} runs in its own transaction so the
+ * audit row and the {@code export.requested} event commit together once the CSV has been
+ * written, which means an export is never announced without its audit row.</p>
  */
 @Service
 public class ExportService {
@@ -39,19 +45,29 @@ public class ExportService {
     private static final DateTimeFormatter FILE_TIMESTAMP =
             DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm").withZone(ZoneOffset.UTC);
 
+    /**
+     * The subject an export event is recorded against. An export covers the whole dataset rather
+     * than one customer or account, so it shares one ordering key ({@code CUSTOMER-0}) and its
+     * events stay in the order the exports happened in.
+     */
+    private static final long BANK_WIDE_SUBJECT_ID = 0L;
+
     private final CustomerRepository customerRepository;
     private final AccountRepository accountRepository;
     private final DataExportRepository dataExportRepository;
     private final Clock clock;
+    private final BusinessEventOutbox businessEventOutbox;
 
     public ExportService(CustomerRepository customerRepository,
                          AccountRepository accountRepository,
                          DataExportRepository dataExportRepository,
-                         Clock clock) {
+                         Clock clock,
+                         BusinessEventOutbox businessEventOutbox) {
         this.customerRepository = customerRepository;
         this.accountRepository = accountRepository;
         this.dataExportRepository = dataExportRepository;
         this.clock = clock;
+        this.businessEventOutbox = businessEventOutbox;
     }
 
     /**
@@ -68,9 +84,11 @@ public class ExportService {
     }
 
     /**
-     * Writes the CSV for a prepared export, then saves the audit row. The supplied
-     * stream is flushed but never closed.
+     * Writes the CSV for a prepared export, then saves the audit row and records the
+     * {@code export.requested} event in the same transaction, so the export is announced only
+     * once its audit row is stored. The supplied stream is flushed but never closed.
      */
+    @Transactional
     public void write(PreparedExport plan, OutputStream out) throws IOException {
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
         long dataRows = 0L;
@@ -91,6 +109,9 @@ public class ExportService {
                 .recordCount(dataRows)
                 .exportedAt(Instant.now(clock))
                 .build());
+        businessEventOutbox.record(BusinessEventType.EXPORT_REQUESTED, SubjectType.CUSTOMER,
+                BANK_WIDE_SUBJECT_ID, plan.exportedBy(), UUID.randomUUID().toString(),
+                new ExportRequestedPayload(plan.type(), plan.exportedBy(), plan.fileName()));
     }
 
     private long writeCustomers(Writer writer) throws IOException {
