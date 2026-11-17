@@ -1,0 +1,31 @@
+# BANK-7 – A local Kafka for the business event publisher, in one command
+#
+# The business events of this application are published to Kafka by the scheduled outbox
+# relay, so a reviewer needs a real broker to watch. This single-node broker runs in KRaft
+# mode (no ZooKeeper) and is reachable at localhost:9092:
+#
+#   docker compose up -d
+#
+# Everything else - the topic and ordering-key convention, the retry behaviour and how to
+# read the topic back - is documented in docs/BANK-7-kafka-outbox.md.
+services:
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: banking-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
